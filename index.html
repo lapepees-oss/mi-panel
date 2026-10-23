@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1e1e2e">
+  <title>Mi Panel</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Pantalla de acceso -->
+  <main id="auth" class="card hidden">
+    <h1>Mi Panel</h1>
+    <p class="muted">Entra con tu cuenta para sincronizar móvil y PC.</p>
+    <form id="auth-form">
+      <input id="email" type="email" placeholder="Correo" autocomplete="email" required>
+      <input id="password" type="password" placeholder="Contraseña (mín. 6)" autocomplete="current-password" minlength="6" required>
+      <div class="row">
+        <button type="submit" data-mode="login">Entrar</button>
+        <button type="submit" data-mode="signup" class="secondary">Crear cuenta</button>
+      </div>
+      <p id="auth-msg" class="muted"></p>
+    </form>
+  </main>
+
+  <!-- Aviso de configuración -->
+  <main id="setup" class="card hidden">
+    <h1>Falta configurar</h1>
+    <p>Abre <code>config.js</code> y pega la URL y la clave anon de tu proyecto de Supabase. Los pasos están en el README.</p>
+  </main>
+
+  <!-- App -->
+  <div id="app" class="hidden">
+    <header>
+      <h1>Mi Panel</h1>
+      <div class="row">
+        <span id="sync" class="muted" title="Estado de sincronización">●</span>
+        <button id="logout" class="secondary small">Salir</button>
+      </div>
+    </header>
+
+    <nav>
+      <button data-tab="tasks" class="active">Tareas</button>
+      <button data-tab="habits">Hábitos</button>
+      <button data-tab="timer">Cronómetro</button>
+    </nav>
+
+    <section id="tab-tasks" class="tab">
+      <form id="task-form" class="row">
+        <input id="task-title" placeholder="Nueva tarea…" maxlength="200" required>
+        <button type="submit">Añadir</button>
+      </form>
+      <ul id="task-list" class="list"></ul>
+      <p id="task-empty" class="muted center hidden">Sin tareas. ¡Añade la primera!</p>
+    </section>
+
+    <section id="tab-habits" class="tab hidden">
+      <form id="habit-form" class="row">
+        <input id="habit-name" placeholder="Nuevo hábito…" maxlength="80" required>
+        <button type="submit">Añadir</button>
+      </form>
+      <div id="habit-list"></div>
+      <p id="habit-empty" class="muted center hidden">Sin hábitos todavía.</p>
+    </section>
+
+    <section id="tab-timer" class="tab hidden">
+      <div class="card center">
+        <input id="timer-label" placeholder="¿En qué trabajas? (opcional)" maxlength="80">
+        <div id="timer-display" class="clock">00:00:00</div>
+        <div class="row center">
+          <button id="timer-toggle">Iniciar</button>
+          <button id="timer-save" class="secondary">Guardar sesión</button>
+          <button id="timer-reset" class="secondary">Reiniciar</button>
+        </div>
+      </div>
+      <h2>Últimas sesiones</h2>
+      <ul id="session-list" class="list"></ul>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

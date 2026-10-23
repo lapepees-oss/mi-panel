@@ -1,0 +1,14 @@
+{
+  "name": "Mi Panel",
+  "short_name": "Mi Panel",
+  "description": "Tareas, hábitos y cronómetro sincronizados",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1e1e2e",
+  "theme_color": "#1e1e2e",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
