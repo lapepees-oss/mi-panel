@@ -143,10 +143,19 @@
         </nav>
       </div>
       <div class="sidebar-bottom">
-        <div class="focus-card sidebar-heat-card">
-          <strong>Mapa de constancia</strong>
-          <p>Tus últimos 35 días.</p>
-          <div id="sidebarHeatmap" class="heatmap sidebar-heatmap" role="img" aria-label="Mapa de constancia de 35 días"></div>
+        <div class="focus-card sidebar-heat-card" id="sideHeatCard" data-size="m">
+          <div class="side-heat-head">
+            <strong>Mapa de constancia</strong>
+            <span class="side-heat-tools">
+              <button type="button" class="mini-btn" id="sideHeatSmaller" title="Más pequeño" aria-label="Hacer el mapa más pequeño">−</button>
+              <button type="button" class="mini-btn" id="sideHeatBigger" title="Más grande" aria-label="Hacer el mapa más grande">+</button>
+              <button type="button" class="mini-btn" id="sideHeatToggle" title="Minimizar" aria-label="Minimizar el mapa" aria-expanded="true">▾</button>
+            </span>
+          </div>
+          <div class="side-heat-body" id="sideHeatBody">
+            <p>Tus últimos 35 días.</p>
+            <div id="sidebarHeatmap" class="heatmap sidebar-heatmap" role="img" aria-label="Mapa de constancia de 35 días"></div>
+          </div>
           <small id="sidebarHeatCaption"></small>
         </div>
         <div class="profile">
