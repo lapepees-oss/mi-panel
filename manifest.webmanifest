@@ -1,14 +1,37 @@
 {
-  "name": "Mi Panel",
-  "short_name": "Mi Panel",
-  "description": "Tareas, hábitos y cronómetro sincronizados",
+  "name": "Cloudspace",
+  "short_name": "Cloudspace",
+  "description": "Tareas, hábitos, diario, finanzas y cronómetro en un solo espacio",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#1e1e2e",
-  "theme_color": "#1e1e2e",
+  "background_color": "#0c0d14",
+  "theme_color": "#0c0d14",
+  "lang": "es",
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

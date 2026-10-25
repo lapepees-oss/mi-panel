@@ -1,6 +1,6 @@
 // Service worker: deja la app abrir sin conexión (los datos vienen de Supabase)
-const CACHE = "mi-panel-v1";
-const SHELL = ["./", "index.html", "styles.css", "app.js", "config.js", "icon.svg", "manifest.webmanifest"];
+const CACHE = "cloudspace-v3";
+const SHELL = ["./", "index.html", "styles.css", "login.css", "logic.js", "core.js", "data.js", "auth.js", "dashboard.js", "habits.js", "tasks.js", "journal.js", "finance.js", "timer.js", "prefs.js", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-32.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));

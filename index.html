@@ -1,88 +1,565 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1e1e2e">
-  <title>Mi Panel</title>
+  <meta name="theme-color" content="#0c0d14">
+  <meta name="color-scheme" content="dark light">
+  <title>Cloudspace</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="login.css">
+  <!-- Aplica el tema antes de pintar para evitar parpadeos (oscuro por defecto) -->
+  <script>
+    try {
+      var t = JSON.parse(localStorage.getItem("mipanel.theme"));
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    } catch (_) {}
+  </script>
 </head>
 <body>
-  <!-- Pantalla de acceso -->
-  <main id="auth" class="card hidden">
-    <h1>Mi Panel</h1>
-    <p class="muted">Entra con tu cuenta para sincronizar móvil y PC.</p>
-    <form id="auth-form">
-      <input id="email" type="email" placeholder="Correo" autocomplete="email" required>
-      <input id="password" type="password" placeholder="Contraseña (mín. 6)" autocomplete="current-password" minlength="6" required>
-      <div class="row">
-        <button type="submit" data-mode="login">Entrar</button>
-        <button type="submit" data-mode="signup" class="secondary">Crear cuenta</button>
+  <div id="boot" class="boot" role="status">Cargando tu espacio…</div>
+  <!-- Iconos -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.8"/></symbol>
+      <symbol id="i-habit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></symbol>
+      <symbol id="i-task" viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.3 1.3L7 4.8M3.5 12l1.3 1.3L7 10.8M3.5 18l1.3 1.3L7 16.8"/></symbol>
+      <symbol id="i-journal" viewBox="0 0 24 24"><path d="M4 20l4-1 11-11a2.1 2.1 0 00-3-3L5 16l-1 4z"/><path d="M14 7l3 3"/></symbol>
+      <symbol id="i-euro" viewBox="0 0 24 24"><path d="M18.5 7.5A6.5 6.5 0 1018.5 16.5"/><path d="M4 10.5h9M4 13.5h9"/></symbol>
+      <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 3h5"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2.5 12h2M19.5 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 11L12 15.5 16.5 11M5 20h14"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- ===== Pantalla de acceso ===== -->
+  <main id="auth" class="login-shell hidden">
+    <section class="brand-panel" aria-label="Presentación de Cloudspace">
+      <div class="brand">
+        <img class="brand-mark" src="icons/icon-192.png" alt="" width="38" height="38">
+        <span>cloudspace</span>
       </div>
-      <p id="auth-msg" class="muted"></p>
-    </form>
+      <div class="brand-copy">
+        <span class="eyebrow">TU ESPACIO, A TU RITMO</span>
+        <h1>Un lugar para<br><span>ordenar tu mundo.</span></h1>
+        <p>Hábitos, tareas, ideas y finanzas. Todo lo que necesitas para avanzar, en un espacio que es solo tuyo.</p>
+      </div>
+      <div class="ambient-orb orb-one"></div>
+      <div class="ambient-orb orb-two"></div>
+      <div class="mini-preview" aria-hidden="true">
+        <div class="preview-top"><span></span><span></span><span></span><i>Tu semana</i></div>
+        <div class="preview-title">Pequeños pasos, grandes cambios</div>
+        <div class="preview-bars"><b style="height:38%"></b><b style="height:64%"></b><b style="height:48%"></b><b style="height:82%"></b><b style="height:58%"></b><b style="height:92%"></b><b style="height:70%"></b></div>
+        <div class="preview-foot"><span>Constancia semanal</span><strong>+ progreso</strong></div>
+      </div>
+      <div class="brand-foot">Un día a la vez. <span>✦</span></div>
+    </section>
+
+    <section class="form-panel">
+      <div class="mobile-brand"><img class="brand-mark" src="icons/icon-192.png" alt="" width="35" height="35"> cloudspace</div>
+      <div class="form-wrap">
+        <div class="form-heading">
+          <span class="eyebrow" id="auth-eyebrow"></span>
+          <h2 id="auth-title"></h2>
+          <p id="auth-sub"></p>
+        </div>
+
+        <div class="mode-switch" id="auth-tabs" role="tablist" aria-label="Tipo de acceso">
+          <button type="button" class="mode active" role="tab" aria-selected="true" data-mode="login">Iniciar sesión</button>
+          <button type="button" class="mode" role="tab" aria-selected="false" data-mode="signup">Crear cuenta</button>
+        </div>
+
+        <form id="auth-form" novalidate>
+          <div class="field" data-for="login signup forgot">
+            <label for="email">Correo electrónico</label>
+            <input id="email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="tu@correo.com" required>
+            <small class="field-error" id="email-error"></small>
+          </div>
+          <div class="field" data-for="login signup recovery">
+            <div class="label-row">
+              <label for="password" id="password-label">Contraseña</label>
+              <button type="button" class="text-button" id="forgot-button" data-for="login">¿La has olvidado?</button>
+            </div>
+            <div class="password-wrap">
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required>
+              <button class="show-password" type="button" id="toggle-password" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button>
+            </div>
+            <small class="field-hint" id="password-hint" data-for="signup recovery">Mínimo 8 caracteres.</small>
+            <small class="field-error" id="password-error"></small>
+          </div>
+          <div class="field" data-for="signup recovery">
+            <label for="confirm">Repite la contraseña</label>
+            <input id="confirm" name="confirm" type="password" autocomplete="new-password" placeholder="Repite la contraseña">
+            <small class="field-error" id="confirm-error"></small>
+          </div>
+          <div class="form-options" data-for="login">
+            <label class="check-label"><input type="checkbox" id="remember" checked><span class="custom-check"></span> Mantener la sesión iniciada en este dispositivo</label>
+          </div>
+          <button class="submit-button" id="submit-button" type="submit"><span class="spinner" aria-hidden="true"></span><span id="submit-label">Entrar en mi espacio</span><span class="arrow" aria-hidden="true">↗</span></button>
+          <p class="status-message" id="status-message" role="status" aria-live="polite"></p>
+        </form>
+
+        <button type="button" class="text-button back-link hidden" id="auth-back">← Volver a iniciar sesión</button>
+
+        <div class="separator" id="auth-sep"><span>o continúa con</span></div>
+        <button class="provider-button" id="google-button" type="button"><span class="google-g" aria-hidden="true">G</span> Continuar con Google</button>
+        <p class="legal-copy">Tu sesión la gestiona Supabase. La contraseña nunca se guarda en este navegador.</p>
+      </div>
+      <footer class="form-footer"><span>© Cloudspace</span><span id="auth-env"></span></footer>
+    </section>
   </main>
 
-  <!-- Aviso de configuración -->
-  <main id="setup" class="card hidden">
+  <!-- ===== Falta configurar ===== -->
+  <main id="setup" class="setup-card hidden">
     <h1>Falta configurar</h1>
     <p>Abre <code>config.js</code> y pega la URL y la clave anon de tu proyecto de Supabase. Los pasos están en el README.</p>
   </main>
 
-  <!-- App -->
-  <div id="app" class="hidden">
-    <header>
-      <h1>Mi Panel</h1>
-      <div class="row">
-        <span id="sync" class="muted" title="Estado de sincronización">●</span>
-        <button id="logout" class="secondary small">Salir</button>
+  <!-- ===== Aplicación ===== -->
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand side-brand">
+        <img class="brand-mark" src="icons/icon-192.png" alt="" width="38" height="38">
+        <div><div class="brand-name">cloudspace</div><div class="brand-sub">tu espacio para crecer</div></div>
       </div>
-    </header>
-
-    <nav>
-      <button data-tab="tasks" class="active">Tareas</button>
-      <button data-tab="habits">Hábitos</button>
-      <button data-tab="timer">Cronómetro</button>
-    </nav>
-
-    <section id="tab-tasks" class="tab">
-      <form id="task-form" class="row">
-        <input id="task-title" placeholder="Nueva tarea…" maxlength="200" required>
-        <button type="submit">Añadir</button>
-      </form>
-      <ul id="task-list" class="list"></ul>
-      <p id="task-empty" class="muted center hidden">Sin tareas. ¡Añade la primera!</p>
-    </section>
-
-    <section id="tab-habits" class="tab hidden">
-      <form id="habit-form" class="row">
-        <input id="habit-name" placeholder="Nuevo hábito…" maxlength="80" required>
-        <button type="submit">Añadir</button>
-      </form>
-      <div id="habit-list"></div>
-      <p id="habit-empty" class="muted center hidden">Sin hábitos todavía.</p>
-    </section>
-
-    <section id="tab-timer" class="tab hidden">
-      <div class="card center">
-        <input id="timer-label" placeholder="¿En qué trabajas? (opcional)" maxlength="80">
-        <div id="timer-display" class="clock">00:00:00</div>
-        <div class="row center">
-          <button id="timer-toggle">Iniciar</button>
-          <button id="timer-save" class="secondary">Guardar sesión</button>
-          <button id="timer-reset" class="secondary">Reiniciar</button>
+      <div class="side-nav">
+        <div class="nav-label">Workspace</div>
+        <nav class="nav" aria-label="Secciones">
+          <a href="#/dashboard" data-page="dashboard"><svg class="ico"><use href="#i-dash"/></svg><span>Resumen</span></a>
+          <a href="#/habits" data-page="habits"><svg class="ico"><use href="#i-habit"/></svg><span>Hábitos</span></a>
+          <a href="#/tasks" data-page="tasks"><svg class="ico"><use href="#i-task"/></svg><span>Tareas</span></a>
+          <a href="#/journal" data-page="journal"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
+          <a href="#/finance" data-page="finance"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
+          <a href="#/timer" data-page="timer"><svg class="ico"><use href="#i-timer"/></svg><span>Cronómetro</span></a>
+        </nav>
+      </div>
+      <div class="sidebar-bottom">
+        <div class="focus-card sidebar-heat-card">
+          <strong>Mapa de constancia</strong>
+          <p>Tus últimos 35 días.</p>
+          <div id="sidebarHeatmap" class="heatmap sidebar-heatmap" role="img" aria-label="Mapa de constancia de 35 días"></div>
+          <small id="sidebarHeatCaption"></small>
+        </div>
+        <div class="profile">
+          <div class="avatar" aria-hidden="true">☁️</div>
+          <div class="profile-text"><strong>Mi espacio</strong><small id="userEmail"></small></div>
+          <button type="button" id="logout" class="icon-button" title="Cerrar sesión" aria-label="Cerrar sesión"><svg class="ico"><use href="#i-logout"/></svg></button>
         </div>
       </div>
-      <h2>Últimas sesiones</h2>
-      <ul id="session-list" class="list"></ul>
-    </section>
+    </aside>
+
+    <main class="main" id="main">
+      <div class="topbar">
+        <div class="breadcrumb">Workspace <span> / </span> <b id="crumb">Resumen</b></div>
+        <div class="top-actions">
+          <span class="date-chip" id="todayDate"></span>
+          <span id="sync" class="sync-dot" role="img" aria-label="Estado de sincronización"></span>
+          <a class="icon-button" href="#/prefs" id="prefsLink" title="Preferencias y datos" aria-label="Preferencias y datos"><svg class="ico"><use href="#i-gear"/></svg></a>
+          <button type="button" class="icon-button" id="themeToggle" title="Cambiar tema" aria-label="Cambiar tema"><svg class="ico"><use href="#i-sun"/></svg></button>
+        </div>
+      </div>
+
+      <div id="banner" class="banner hidden" role="alert"></div>
+
+      <!-- RESUMEN -->
+      <section class="page" id="page-dashboard" aria-labelledby="h-dashboard">
+        <h1 class="sr-only" id="h-dashboard">Resumen</h1>
+        <section class="panel compact-heat-panel">
+          <div class="panel-head">
+            <div><h3>Mapa de constancia</h3><p>Hábitos cumplidos en los últimos 35 días.</p></div>
+            <span class="pill" id="heatmapCaption"></span>
+          </div>
+          <div class="compact-heat-content">
+            <div id="activityHeatmap" class="heatmap dashboard-heatmap" role="img" aria-label="Mapa de actividad de los últimos 35 días"></div>
+            <div class="compact-heat-side">
+              <strong>Un día cada vez.</strong>
+              <span>Los tonos más intensos indican más hábitos cumplidos ese día.</span>
+              <div class="heatmap-legend"><span>Menos</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>Más</span></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="stats">
+          <div class="stat"><div class="stat-top"><span>Tareas para hoy</span><svg class="stat-icon"><use href="#i-task"/></svg></div><div class="stat-value" id="statToday">0</div><div class="stat-foot" id="statTodayFoot"></div></div>
+          <div class="stat"><div class="stat-top"><span>Hábitos de hoy</span><svg class="stat-icon"><use href="#i-habit"/></svg></div><div class="stat-value" id="statHabits">0/0</div><div class="stat-foot" id="statHabitsFoot"></div></div>
+          <div class="stat"><div class="stat-top"><span>Racha actual más larga</span><svg class="stat-icon"><use href="#i-sun"/></svg></div><div class="stat-value" id="statStreak">0 días</div><div class="stat-foot" id="statStreakFoot"></div></div>
+          <div class="stat"><div class="stat-top"><span>Palabras en el diario</span><svg class="stat-icon"><use href="#i-journal"/></svg></div><div class="stat-value" id="statWords">0</div><div class="stat-foot">En todas tus notas</div></div>
+        </div>
+
+        <div class="section-title"><div><h2>Tu día, de un vistazo</h2><p>Pequeñas acciones que te acercan a tus objetivos.</p></div></div>
+        <div class="content-grid">
+          <section class="panel">
+            <div class="panel-head"><div><h3>Hábitos de hoy</h3><p>Pulsa para marcar o desmarcar.</p></div><a class="link-button" href="#/habits">Ver hábitos ↗</a></div>
+            <div class="habit-quick" id="dashHabits"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h3>Lo que toca hacer</h3><p>Vencidas y de hoy primero.</p></div><a class="link-button" href="#/tasks">Ver todo ↗</a></div>
+            <ul class="list task-quick" id="dashTasks"></ul>
+            <form class="add-task" id="quickTaskForm">
+              <input id="quickTask" placeholder="Añadir una tarea para hoy…" maxlength="200" required aria-label="Añadir una tarea para hoy">
+              <button class="primary-btn" type="submit">+ Añadir</button>
+            </form>
+          </section>
+        </div>
+
+        <div class="section-title"><div><h2>Tu actividad, en gráficos</h2><p>Cómo avanza tu semana.</p></div></div>
+        <div class="content-grid analytics-grid">
+          <section class="panel">
+            <div class="panel-head"><div><h3>Actividad diaria</h3><p>Hábitos cumplidos en los últimos 7 días</p></div><span class="chart-legend"><i></i> Cumplidos</span></div>
+            <div id="weeklyChart" class="weekly-chart" role="img" aria-label="Gráfico de hábitos cumplidos durante los últimos siete días"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h3>Progreso de hoy</h3><p>Hábitos y tareas del día</p></div></div>
+            <div class="weekly-card">
+              <div class="ring" id="progressRing" role="img" aria-label="Progreso de hoy"><strong id="progressPct">0%</strong></div>
+              <div class="weekly-copy"><strong id="progressTitle">Empieza cuando quieras</strong><p id="progressText"></p></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="section-title"><div><h2>Tu dinero, bajo control</h2><p id="dashMonthLabel">Resumen del mes actual.</p></div><a class="link-button" href="#/finance">Abrir finanzas ↗</a></div>
+        <div class="stats finance-mini-stats">
+          <div class="stat"><div class="stat-top"><span>Ingresos del mes</span><svg class="stat-icon"><use href="#i-download"/></svg></div><div class="stat-value" id="dashIncome">0,00 €</div><div class="stat-foot">Entradas registradas</div></div>
+          <div class="stat"><div class="stat-top"><span>Gastos del mes</span><svg class="stat-icon flip"><use href="#i-download"/></svg></div><div class="stat-value" id="dashExpenses">0,00 €</div><div class="stat-foot">Salidas registradas</div></div>
+          <div class="stat"><div class="stat-top"><span>Balance mensual</span><svg class="stat-icon"><use href="#i-euro"/></svg></div><div class="stat-value" id="dashBalance">0,00 €</div><div class="stat-foot">Ingresos menos gastos</div></div>
+          <div class="stat"><div class="stat-top"><span>Presupuesto restante</span><svg class="stat-icon"><use href="#i-gear"/></svg></div><div class="stat-value" id="dashBudgetLeft">—</div><div class="stat-foot" id="dashBudgetFoot">Define un presupuesto en Finanzas</div></div>
+        </div>
+
+        <div class="section-title"><div><h2>Un momento para ti</h2><p>Deja por escrito lo que te ronda la cabeza.</p></div><a class="link-button" href="#/journal">Abrir diario ↗</a></div>
+        <section class="panel journal">
+          <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">✧</div><div><strong>Nota rápida de hoy</strong><small>Se guarda sola, en tu cuenta</small></div></div>
+          <textarea id="quickJournal" data-journal="quick" data-follow="today" placeholder="Hoy me gustaría recordar que…" aria-label="Nota rápida de hoy"></textarea>
+          <div class="journal-footer"><small id="quickSaveStatus" class="save-indicator"></small><small id="quickWords"></small></div>
+        </section>
+      </section>
+
+      <!-- HÁBITOS -->
+      <section class="page hidden" id="page-habits" aria-labelledby="h-habits">
+        <div class="page-intro"><h1 id="h-habits">Construye tu ritmo</h1><p>No busques una semana perfecta. Busca repetir lo que te hace bien.</p></div>
+        <form class="add-habit-form" id="habitForm">
+          <input id="habitName" maxlength="80" placeholder="Añade un hábito nuevo…" required aria-label="Nombre del nuevo hábito">
+          <select id="habitEmoji" aria-label="Icono del hábito">
+            <option value="🌱">🌱 Crecimiento</option><option value="💧">💧 Agua</option><option value="📖">📖 Lectura</option>
+            <option value="🏃">🏃 Movimiento</option><option value="🧘">🧘 Calma</option><option value="✍️">✍️ Escritura</option>
+            <option value="🎯">🎯 Enfoque</option><option value="🎸">🎸 Música</option><option value="💤">💤 Sueño</option>
+          </select>
+          <input id="habitHint" maxlength="120" placeholder="Nota (opcional)" aria-label="Nota del hábito">
+          <button class="primary-btn" type="submit">+ Crear hábito</button>
+        </form>
+        <p class="form-error" id="habitError" role="alert"></p>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div><h3>Tus hábitos</h3><p>Pulsa un día para marcarlo; también puedes corregir días pasados.</p></div>
+            <div class="week-nav">
+              <button type="button" class="icon-button" id="weekPrev" aria-label="Semana anterior">‹</button>
+              <button type="button" class="filter" id="weekToday">Esta semana</button>
+              <button type="button" class="icon-button" id="weekNext" aria-label="Semana siguiente">›</button>
+            </div>
+          </div>
+          <p class="muted week-label" id="weekLabel"></p>
+          <div class="habit-list" id="habitList"></div>
+          <p class="empty-state hidden" id="habitEmpty">Aún no tienes hábitos. Crea el primero arriba y empieza hoy.</p>
+        </section>
+
+        <div class="content-grid habit-bottom">
+          <section class="panel">
+            <div class="panel-head">
+              <div><h3>Calendario de constancia</h3><p>Últimos 35 días · pulsa un día para editarlo</p></div>
+              <span class="pill" id="habitHeatCaption"></span>
+            </div>
+            <div id="habitHeatmap" class="heatmap large-heatmap" aria-label="Calendario de 35 días"></div>
+            <div class="heatmap-legend"><span>Menos</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>Más</span></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h3 id="dayPanelTitle">Registrar un día</h3><p>Elige una fecha y marca lo que cumpliste.</p></div></div>
+            <label class="field"><span class="muted">Fecha</span><input type="date" id="dayPicker"></label>
+            <div class="habit-quick" id="dayPanel"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- TAREAS -->
+      <section class="page hidden" id="page-tasks" aria-labelledby="h-tasks">
+        <div class="page-intro"><h1 id="h-tasks">Un paso a la vez</h1><p>Ordena tus pendientes y libera espacio mental.</p></div>
+
+        <section class="panel task-form-panel">
+          <div class="panel-head"><div><h3>Nueva tarea</h3><p>Fecha, prioridad, proyecto y etiqueta son opcionales.</p></div></div>
+          <form id="task-form">
+            <div class="task-form-grid">
+              <input id="task-title" placeholder="Ej. Entregar la práctica de bases de datos" maxlength="200" required aria-label="Nombre de la tarea">
+              <input id="task-due" type="date" aria-label="Fecha límite">
+              <select id="task-prio" aria-label="Prioridad">
+                <option value="4">P4 · Normal</option><option value="3">P3 · Media</option><option value="2">P2 · Alta</option><option value="1">P1 · Urgente</option>
+              </select>
+              <select id="task-project" aria-label="Proyecto"></select>
+              <input id="task-label" placeholder="Etiqueta" maxlength="60" aria-label="Etiquetas separadas por comas">
+              <button class="primary-btn" type="submit">+ Añadir tarea</button>
+            </div>
+          </form>
+          <p class="form-error" id="task-error" role="alert"></p>
+        </section>
+
+        <div class="task-toolbar">
+          <input id="task-search" type="search" placeholder="Buscar tareas…" aria-label="Buscar tareas">
+          <select id="task-filter-label" aria-label="Filtrar por etiqueta"></select>
+          <select id="task-filter-prio" aria-label="Filtrar por prioridad">
+            <option value="">Toda prioridad</option><option value="1">P1 · Urgente</option><option value="2">P2 · Alta</option><option value="3">P3 · Media</option><option value="4">P4 · Normal</option>
+          </select>
+          <select id="task-sort" aria-label="Ordenar tareas">
+            <option value="smart">Orden inteligente</option><option value="due">Fecha límite</option><option value="priority">Prioridad</option><option value="created">Más recientes</option><option value="alpha">A-Z</option>
+          </select>
+          <div id="task-mode" class="seg" role="group" aria-label="Vista">
+            <button type="button" data-mode="list" class="active" title="Vista de lista" aria-label="Vista de lista">☰</button>
+            <button type="button" data-mode="board" title="Vista de tablero" aria-label="Vista de tablero">▦</button>
+          </div>
+        </div>
+
+        <div id="task-chips" class="chips task-view-tabs" role="tablist" aria-label="Vistas de tareas"></div>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div><h3 id="task-heading">Bandeja de entrada</h3><p id="task-summary"></p></div>
+            <div class="row nowrap">
+              <button id="list-rename" class="link-button hidden" type="button">Renombrar proyecto</button>
+              <button id="list-delete" class="link-button danger hidden" type="button">Borrar proyecto</button>
+              <button id="task-clear-done" class="link-button hidden" type="button">Limpiar completadas</button>
+            </div>
+          </div>
+          <div id="task-list-wrap">
+            <ul id="task-list" class="list"></ul>
+            <details id="task-done-wrap" class="hidden">
+              <summary>Completadas (<span id="task-done-count">0</span>)</summary>
+              <ul id="task-done-list" class="list"></ul>
+            </details>
+          </div>
+          <div id="task-board" class="board hidden"></div>
+          <p id="task-empty" class="empty-state hidden"></p>
+        </section>
+      </section>
+
+      <!-- DIARIO -->
+      <section class="page hidden" id="page-journal" aria-labelledby="h-journal">
+        <div class="page-intro"><h1 id="h-journal">Tu rincón de ideas</h1><p>Escribe sin presión. No tiene que quedar perfecto, solo ser tuyo.</p></div>
+        <div class="date-nav">
+          <button type="button" class="icon-button" id="journalPrev" aria-label="Día anterior">‹</button>
+          <input type="date" id="journalDate" aria-label="Fecha del diario">
+          <button type="button" class="icon-button" id="journalNext" aria-label="Día siguiente">›</button>
+          <button type="button" class="filter" id="journalToday">Hoy</button>
+          <span class="muted" id="journalDateLabel"></span>
+        </div>
+        <section class="panel journal">
+          <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">✧</div><div><strong>Nota rápida</strong><small>Una idea, un recordatorio, una frase</small></div></div>
+          <textarea id="jQuick" data-journal="quick" data-follow="date" style="min-height:90px" placeholder="Hoy me gustaría recordar que…" aria-label="Nota rápida"></textarea>
+          <div class="journal-footer"><small id="jQuickStatus" class="save-indicator"></small><small id="jQuickWords"></small></div>
+        </section>
+        <section class="panel journal" style="margin-top:16px">
+          <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">🌙</div><div><strong>Entrada del día</strong><small>Para lo que necesita más espacio</small></div></div>
+          <textarea id="jFull" data-journal="entry" data-follow="date" style="min-height:240px" placeholder="¿Qué ha ido bien hoy? ¿Qué has aprendido? ¿Qué te gustaría recordar?" aria-label="Entrada del día"></textarea>
+          <div class="journal-footer"><small id="jFullStatus" class="save-indicator"></small><small id="jFullWords"></small></div>
+        </section>
+        <div class="section-title"><div><h2>¿No sabes por dónde empezar?</h2><p>Pulsa una pregunta y se añade a tu entrada.</p></div></div>
+        <div class="journal-prompts" id="journalPrompts"></div>
+        <div class="section-title"><div><h2>Entradas anteriores</h2><p id="journalHistoryCaption"></p></div></div>
+        <div class="list" id="journalHistory"></div>
+        <p class="empty-state hidden" id="journalHistoryEmpty">Todavía no has escrito nada. Tu primera nota aparecerá aquí.</p>
+      </section>
+
+      <!-- FINANZAS -->
+      <section class="page hidden" id="page-finance" aria-labelledby="h-finance">
+        <div class="page-intro"><h1 id="h-finance">Finanzas personales</h1><p>Registra ingresos y gastos a mano, vigila tu presupuesto y entiende en qué se va tu dinero. No hay conexión con ningún banco.</p></div>
+        <div class="date-nav">
+          <button type="button" class="icon-button" id="finPrev" aria-label="Mes anterior">‹</button>
+          <strong class="month-label" id="finMonthLabel"></strong>
+          <button type="button" class="icon-button" id="finNext" aria-label="Mes siguiente">›</button>
+          <button type="button" class="filter" id="finThisMonth">Este mes</button>
+        </div>
+        <div class="stats finance-stats">
+          <div class="stat"><div class="stat-top"><span>Ingresos</span><svg class="stat-icon"><use href="#i-download"/></svg></div><div class="stat-value" id="finIncome">0,00 €</div><div class="stat-foot">Total de entradas</div></div>
+          <div class="stat"><div class="stat-top"><span>Gastos</span><svg class="stat-icon flip"><use href="#i-download"/></svg></div><div class="stat-value" id="finExpense">0,00 €</div><div class="stat-foot">Total de salidas</div></div>
+          <div class="stat"><div class="stat-top"><span>Balance del mes</span><svg class="stat-icon"><use href="#i-euro"/></svg></div><div class="stat-value" id="finBalance">0,00 €</div><div class="stat-foot">Ingresos − gastos</div></div>
+          <div class="stat"><div class="stat-top"><span>Presupuesto disponible</span><svg class="stat-icon"><use href="#i-gear"/></svg></div><div class="stat-value" id="finBudgetLeft">—</div><div class="stat-foot" id="finBudgetFoot">Define un presupuesto abajo</div></div>
+        </div>
+
+        <div class="content-grid finance-layout">
+          <section class="panel">
+            <div class="panel-head"><div><h3 id="txFormTitle">Añadir movimiento</h3><p>Apunta un ingreso o un gasto.</p></div></div>
+            <form id="txForm" class="finance-form" novalidate>
+              <label>Tipo<select id="txType"><option value="expense">Gasto</option><option value="income">Ingreso</option></select></label>
+              <label>Importe (€)<input id="txAmount" inputmode="decimal" autocomplete="off" placeholder="12,50" required></label>
+              <label class="span2">Concepto<input id="txTitle" maxlength="120" placeholder="Compra, paga, transporte…" required></label>
+              <label>Categoría<select id="txCategory"></select></label>
+              <label>Fecha<input id="txDate" type="date" required></label>
+              <p class="form-error span2" id="txError" role="alert"></p>
+              <div class="row span2"><button class="primary-btn" type="submit" id="txSubmit">+ Guardar movimiento</button><button class="secondary small hidden" type="button" id="txCancel">Cancelar edición</button></div>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h3>Presupuestos</h3><p>Un límite total del mes y, si quieres, uno por categoría.</p></div></div>
+            <form id="budgetForm" class="budget-form" novalidate>
+              <select id="budgetCategory" aria-label="Presupuesto de"></select>
+              <input id="budgetAmount" inputmode="decimal" autocomplete="off" placeholder="Ej. 250" aria-label="Importe del presupuesto en euros">
+              <button class="primary-btn" type="submit">Guardar</button>
+            </form>
+            <p class="form-error" id="budgetError" role="alert"></p>
+            <div id="budgetList" class="budget-list"></div>
+          </section>
+        </div>
+
+        <div class="content-grid finance-layout">
+          <section class="panel">
+            <div class="panel-head"><div><h3>Gastos por categoría</h3><p id="categoryCaption"></p></div><span class="pill" id="finMonthPill"></span></div>
+            <div id="categoryChart" class="category-chart"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h3>Últimos 6 meses</h3><p>Ingresos y gastos mes a mes</p></div><span class="chart-legend"><i></i> Ingresos · <i class="spent"></i> Gastos</span></div>
+            <div id="trendChart" class="trend-chart" role="img" aria-label="Ingresos y gastos de los últimos seis meses"></div>
+          </section>
+        </div>
+
+        <section class="panel finance-history">
+          <div class="panel-head">
+            <div><h3>Movimientos</h3><p id="txSummary"></p></div>
+            <div class="finance-filters">
+              <input id="txSearch" type="search" placeholder="Buscar…" aria-label="Buscar movimientos">
+              <select id="txFilterType" aria-label="Filtrar por tipo"><option value="all">Todos</option><option value="income">Ingresos</option><option value="expense">Gastos</option></select>
+              <button class="filter" id="exportCsv" type="button">Exportar CSV</button>
+            </div>
+          </div>
+          <div id="txList" class="transaction-list"></div>
+          <p class="empty-state hidden" id="txEmpty"></p>
+        </section>
+
+        <section class="panel savings-panel">
+          <div class="panel-head"><div><h3>Objetivos de ahorro</h3><p>Define metas y apunta tú mismo cuánto llevas. No se mueve dinero real.</p></div></div>
+          <form id="goalForm" class="savings-form" novalidate>
+            <label>Nombre de la meta<input id="goalName" maxlength="60" placeholder="Ej. Viaje, ordenador…" required></label>
+            <label>Objetivo (€)<input id="goalTarget" inputmode="decimal" autocomplete="off" placeholder="500" required></label>
+            <label>Ahorrado (€)<input id="goalCurrent" inputmode="decimal" autocomplete="off" placeholder="0"></label>
+            <button class="primary-btn" type="submit">+ Crear objetivo</button>
+          </form>
+          <p class="form-error" id="goalError" role="alert"></p>
+          <div id="goalList" class="goal-list"></div>
+        </section>
+      </section>
+
+      <!-- CRONÓMETRO -->
+      <section class="page hidden" id="page-timer" aria-labelledby="h-timer">
+        <div class="page-intro"><h1 id="h-timer">Enfoque</h1><p>Cronómetro libre o rutinas encadenadas, como Pomodoro 25/5.</p></div>
+        <div class="row">
+          <select id="timer-mode" aria-label="Modo del cronómetro" class="auto"></select>
+          <button id="routine-new" class="secondary small" title="Crear una rutina">+ Rutina</button>
+          <button id="routine-edit" class="secondary small hidden">Editar</button>
+          <button id="routine-del" class="secondary small danger hidden">Borrar</button>
+        </div>
+        <button id="routine-examples" class="secondary small hidden" style="margin-top:8px">Crear rutinas de ejemplo (Pomodoro 25/5 y 50/10)</button>
+        <div id="routine-plan" class="plan hidden"></div>
+
+        <div id="timer-card" class="panel center">
+          <div id="phase-label" class="phase"></div>
+          <div id="timer-display" class="clock">00:00:00</div>
+          <div id="phase-bar" class="bar hidden"><div id="phase-fill"></div></div>
+          <div id="phase-next" class="muted"></div>
+          <input id="timer-label" placeholder="¿En qué trabajas? (opcional)" maxlength="80">
+          <div class="row center" style="margin-top:12px">
+            <button id="timer-toggle" class="primary-btn big">Iniciar</button>
+            <button id="timer-skip" class="secondary hidden" title="Saltar a la siguiente fase">Saltar fase</button>
+            <button id="timer-save" class="secondary">Guardar sesión</button>
+            <button id="timer-reset" class="secondary">Reiniciar</button>
+          </div>
+          <button id="timer-notify" class="secondary small hidden" style="margin-top:10px">🔔 Activar avisos del sistema</button>
+          <p class="muted" style="margin:10px 0 0">Los avisos del sistema solo funcionan con la app abierta; no hay notificaciones push.</p>
+        </div>
+
+        <h2>Últimas sesiones</h2>
+        <ul id="session-list" class="list"></ul>
+      </section>
+
+      <!-- PREFERENCIAS -->
+      <section class="page hidden" id="page-prefs" aria-labelledby="h-prefs">
+        <div class="page-intro"><h1 id="h-prefs">Preferencias y datos</h1><p>Apariencia, copias de seguridad e importación.</p></div>
+
+        <section class="panel">
+          <div class="panel-head"><div><h3>Apariencia</h3><p>Se guarda en este dispositivo.</p></div></div>
+          <div class="theme-choice" role="radiogroup" aria-label="Tema">
+            <label class="theme-option"><input type="radio" name="theme" value="dark"><span class="swatch swatch-dark" aria-hidden="true"></span><span>Oscuro</span></label>
+            <label class="theme-option"><input type="radio" name="theme" value="light"><span class="swatch swatch-light" aria-hidden="true"></span><span>Claro</span></label>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top:16px">
+          <div class="panel-head"><div><h3>Tus datos</h3><p>Todo vive en tu proyecto de Supabase. Aquí puedes llevarte una copia.</p></div></div>
+          <div class="row">
+            <button class="primary-btn" id="exportJson" type="button">Exportar todo (JSON)</button>
+            <button class="secondary" id="exportCsvPrefs" type="button">Exportar movimientos (CSV)</button>
+          </div>
+          <p class="muted" id="exportInfo" style="margin-top:10px"></p>
+        </section>
+
+        <section class="panel" style="margin-top:16px">
+          <div class="panel-head"><div><h3>Importar desde Cloudspace</h3><p>Trae tareas, hábitos, movimientos, presupuesto, meta y notas de una copia JSON de la versión de referencia.</p></div></div>
+          <div class="row">
+            <label class="secondary file-btn">Elegir archivo JSON<input type="file" id="importFile" accept="application/json,.json" hidden></label>
+            <button class="secondary hidden" id="importLocal" type="button">Importar datos guardados en este navegador</button>
+          </div>
+          <p class="muted" style="margin-top:10px">Antes de importar verás un resumen. Lo que ya exista no se duplica.</p>
+        </section>
+
+        <section class="panel" style="margin-top:16px">
+          <div class="panel-head"><div><h3>Cuenta</h3><p id="prefsEmail"></p></div></div>
+          <button class="secondary" id="prefsLogout" type="button">Cerrar sesión</button>
+        </section>
+
+        <section class="panel" style="margin-top:16px">
+          <div class="panel-head"><div><h3>Qué hace y qué no hace esta app</h3></div></div>
+          <ul class="honest">
+            <li><b>Sincroniza</b> entre dispositivos a través de Supabase (necesita conexión; no hay cola sin conexión).</li>
+            <li><b>No</b> se conecta a bancos: los movimientos se escriben a mano.</li>
+            <li><b>No</b> envía notificaciones push; el cronómetro avisa solo con la app abierta.</li>
+            <li>Tus preferencias (tema, pestaña) se guardan en este navegador; los datos, en tu cuenta.</li>
+          </ul>
+        </section>
+      </section>
+    </main>
+
+    <!-- Navegación inferior (móvil) -->
+    <nav class="bottom-nav" aria-label="Secciones">
+      <a href="#/dashboard" data-page="dashboard"><svg class="ico"><use href="#i-dash"/></svg><span>Resumen</span></a>
+      <a href="#/habits" data-page="habits"><svg class="ico"><use href="#i-habit"/></svg><span>Hábitos</span></a>
+      <a href="#/tasks" data-page="tasks"><svg class="ico"><use href="#i-task"/></svg><span>Tareas</span></a>
+      <a href="#/journal" data-page="journal"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
+      <a href="#/finance" data-page="finance"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
+      <a href="#/timer" data-page="timer"><svg class="ico"><use href="#i-timer"/></svg><span>Tiempo</span></a>
+    </nav>
   </div>
+
+  <dialog id="task-dialog" aria-label="Detalle de la tarea"></dialog>
+  <dialog id="routine-dialog" aria-label="Editar rutina"></dialog>
+  <dialog id="sheet-dialog" aria-label="Diálogo"></dialog>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <script src="logic.js"></script>
+  <script src="core.js"></script>
+  <script src="data.js"></script>
+  <script src="auth.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="habits.js"></script>
+  <script src="tasks.js"></script>
+  <script src="journal.js"></script>
+  <script src="finance.js"></script>
+  <script src="timer.js"></script>
+  <script src="prefs.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

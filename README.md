@@ -1,71 +1,39 @@
-# Mi Panel
+# Cloudspace (Mi Panel)
 
-App web instalable (PWA) con **tareas**, **hábitos con rachas** y **cronómetro**, sincronizados en tiempo real entre móvil y PC con Supabase.
+Espacio personal privado, instalable como PWA: **resumen con mapa de constancia de 35 días, hábitos, tareas estilo Todoist, diario, finanzas manuales y cronómetro con rutinas**. HTML + CSS + JavaScript sin framework ni build; datos y login en **Supabase**. Oscuro por defecto con acentos violetas (también hay tema claro).
+
+## Qué hace de verdad
+- **Login real** con Supabase Auth: entrar, crear cuenta (opcional), recuperar contraseña, mostrar/ocultar contraseña, "mantener sesión" y Google (si lo activas). La contraseña nunca se guarda en el navegador. Sin sesión no se ve ninguna página privada.
+- **Resumen:** mapa de constancia de 35 días a ancho completo, estadísticas, hábitos y tareas de hoy, progreso diario y resumen financiero del mes.
+- **Hábitos:** crear, marcar hoy o cualquier día pasado, historial de 7 días, calendario de 35 días, rachas calculadas con fechas locales.
+- **Tareas:** Bandeja de entrada, Hoy, Próximas, Pendientes, Completadas; prioridades P1–P4, fecha, proyectos, etiquetas, pasos, repetición, búsqueda, filtros, orden, lista y tablero.
+- **Diario:** nota rápida y entrada larga por día, contador de palabras, autoguardado y borrador local de seguridad.
+- **Finanzas:** ingresos/gastos en céntimos exactos, categorías, balance mensual, presupuestos (total y por categoría), metas de ahorro, gráficos y **exportación CSV** (`;` y coma decimal, apta para Excel).
+- **Preferencias:** tema, **exportar JSON**, importar copias de Cloudspace (con resumen previo y sin duplicar), cerrar sesión.
+
+## Lo que NO hace
+- No hay cola de escritura sin conexión: sin red puedes abrir la app pero los cambios no se guardan.
+- No hay notificaciones push; el cronómetro avisa solo con la app abierta.
+- No se conecta a bancos: los movimientos se escriben a mano.
 
 ## Puesta en marcha
-
-### 1. Crear el proyecto en Supabase (gratis)
-1. Entra en https://supabase.com y crea una cuenta.
-2. **New project**: ponle nombre, una contraseña de base de datos (guárdala) y la región más cercana (por ejemplo Frankfurt).
-3. Espera un par de minutos a que termine de crearse.
-
-### 2. Crear las tablas
-1. En el menú izquierdo abre **SQL Editor** > **New query**.
-2. Pega el contenido completo de `schema.sql` y pulsa **Run**.
-
-### 3. Simplificar el registro
-En **Authentication** > **Sign In / Providers** > **Email**, desactiva **Confirm email**. Así podrás crear tu cuenta y entrar directamente, sin esperar un correo.
-
-### 4. Pegar las claves
-1. Ve a **Project Settings** > **API** (o **Data API**).
-2. Copia la **Project URL** y la clave **anon public**.
-3. Pégalas en `config.js`.
-
-La clave anon es pública por diseño. Tus datos están protegidos por las reglas RLS de `schema.sql`: cada cuenta solo ve sus propias filas. Nunca pegues la clave `service_role` aquí.
-
-### 5. Probarla en el PC
-Desde esta carpeta:
+1. **Supabase > SQL Editor**, en este orden (una vez): `schema.sql` → `migracion-v2.sql` → `migracion-v3.sql` → `single-user.sql` (edita tu correo dentro; este último es el que bloquea los datos a tu cuenta). Si ya los tenías, ejecuta solo `migracion-v3.sql` y vuelve a ejecutar `single-user.sql`.
+2. **`config.js`:** pega `SUPABASE_URL` y `SUPABASE_ANON_KEY` (Project Settings > API). Opcionales: `ALLOW_SIGNUP` (true para mostrar "Crear cuenta"), `GOOGLE_LOGIN` (true para el botón de Google), `ALLOWED_EMAIL` (solo aviso en pantalla).
+3. **Supabase > Authentication > URL Configuration:** pon como *Site URL* y en *Redirect URLs* la dirección de la app (p. ej. `https://lapepees-oss.github.io/mi-panel/`). Sin esto fallan la recuperación de contraseña y Google.
+4. **Google (opcional):** Authentication > Providers > Google, con credenciales de Google Cloud; luego `GOOGLE_LOGIN: true`.
+5. Sube los cambios con git (sin sobrescribir tu `config.js` con claves) y recarga con `Ctrl+Shift+R`.
 
 ```bash
-python3 -m http.server 8000
+git add .
+git commit -m "Cloudspace: login, panel, finanzas y diario"
+git push
 ```
 
-Abre http://localhost:8000, pulsa **Crear cuenta** y ya puedes usarla.
-
-### 6. Publicarla para usarla en el móvil
-El móvil necesita una dirección HTTPS. Con GitHub Pages es gratis:
-
-1. Crea un repositorio en GitHub y sube estos archivos.
-2. En el repositorio: **Settings** > **Pages** > rama `main`, carpeta `/ (root)`.
-3. En un minuto tendrás una URL tipo `https://tuusuario.github.io/mi-panel/`.
-
-### 7. Instalarla en el móvil
-- **Android (Chrome):** menú ⋮ > **Instalar app** (o **Añadir a pantalla de inicio**).
-- **iPhone (Safari):** botón compartir > **Añadir a pantalla de inicio**.
-
-Entra con la misma cuenta que en el PC y verás los mismos datos.
-
-## Cómo funciona
-- **Tiempo real:** al cambiar algo en un dispositivo, el otro se actualiza solo.
-- **Cronómetro:** guarda la hora de inicio, no los segundos, así sigue contando con la pantalla bloqueada. Puedes iniciarlo en el PC y verlo en el móvil. Si los relojes de ambos dispositivos difieren unos segundos, la hora mostrada puede variar ligeramente.
-- **Rachas:** días consecutivos marcados. Si hoy aún no has marcado, la racha cuenta desde ayer, así no se rompe hasta que acaba el día.
-- **Sin conexión:** la app abre sin internet, pero los cambios hechos sin conexión **no se guardan** todavía (es la mejora más natural para una v2).
-
-## Nota sobre el plan gratuito
-Supabase pausa los proyectos gratuitos tras una semana sin actividad. Si pasa, entra en el panel de Supabase y pulsa **Restore**.
-
 ## Estructura
-| Archivo | Para qué sirve |
-|---|---|
-| `index.html` | Estructura de la interfaz |
-| `styles.css` | Estilos (modo claro y oscuro automático) |
-| `app.js` | Lógica: acceso, tareas, hábitos, cronómetro, tiempo real |
-| `config.js` | Tus claves de Supabase |
-| `schema.sql` | Tablas, seguridad y tiempo real |
-| `sw.js` y `manifest.webmanifest` | Convierten la web en app instalable |
+`index.html` (páginas y diálogos) · `styles.css`, `login.css` · `logic.js` (lógica pura, probada en Node) · `core.js` (estado, utilidades) · `data.js` (Supabase) · `auth.js` · `app.js` (rutas) · `dashboard.js`, `habits.js`, `tasks.js`, `journal.js`, `finance.js`, `timer.js`, `prefs.js` · `sw.js`, `manifest.webmanifest`, `icons/`.
 
-## Ideas para ampliarla
-- Cola de cambios sin conexión
-- Recordatorios y notificaciones
-- Estadísticas de hábitos y tiempo por etiqueta
-- Migrar a Flutter reutilizando las mismas tablas
+## Pruebas
+```bash
+node tests/logic.test.js
+```
+Cubre fechas locales, dinero en céntimos, rachas, vistas de tareas, CSV, importación y validación de login.
