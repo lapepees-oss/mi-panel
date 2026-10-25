@@ -73,7 +73,7 @@ const AUTH_TEXT = {
   recovery: { eyebrow: "CASI LISTO", title: "Elige una contraseña nueva", sub: "Usa al menos 8 caracteres. Después entrarás directamente.", submit: "Guardar contraseña", busy: "Guardando…" },
 };
 
-function setStatus(msg, kind = "") {
+function setAuthStatus(msg, kind = "") {
   const el = $("#status-message");
   el.textContent = msg || "";
   el.className = "status-message" + (kind ? " " + kind : "");
@@ -125,7 +125,7 @@ function setAuthMode(mode, { keepStatus = false } = {}) {
   show($("#google-button"), social);
   show($("#auth-sep"), social);
   clearFieldErrors();
-  if (!keepStatus) setStatus("");
+  if (!keepStatus) setAuthStatus("");
   $("#password").type = "password";
   $("#toggle-password").textContent = "Mostrar";
   $("#toggle-password").setAttribute("aria-pressed", "false");
@@ -147,7 +147,7 @@ function showAuthScreen(mode = "login", message = "") {
   show($("#setup"), false);
   show($("#auth"), true);
   setAuthMode(mode, { keepStatus: !!message });
-  if (message) setStatus(message.text, message.kind);
+  if (message) setAuthStatus(message.text, message.kind);
 }
 
 // Errores que Supabase deja en la URL tras un enlace caducado o inválido
@@ -189,11 +189,11 @@ $("#auth-form").addEventListener("submit", async (e) => {
   const errors = Logic.validateAuth({ mode, email, password, confirm });
   showFieldErrors(errors);
   if (Object.keys(errors).length) {
-    setStatus("");
+    setAuthStatus("");
     return;
   }
 
-  setStatus("");
+  setAuthStatus("");
   setBusy(true);
   try {
     if (mode === "login") {
@@ -211,16 +211,16 @@ $("#auth-form").addEventListener("submit", async (e) => {
       $("#confirm").value = "";
       if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
         // Supabase no revela si el correo existe, pero devuelve un usuario sin identidades
-        setStatus(Logic.authErrorText({ code: "user_already_exists" }), "error");
+        setAuthStatus(Logic.authErrorText({ code: "user_already_exists" }), "error");
       } else if (!data.session) {
         setAuthMode("login", { keepStatus: true });
-        setStatus("Cuenta creada. Revisa tu correo (y el spam) y pulsa el enlace de confirmación; después podrás entrar.", "ok");
+        setAuthStatus("Cuenta creada. Revisa tu correo (y el spam) y pulsa el enlace de confirmación; después podrás entrar.", "ok");
       }
     } else if (mode === "forgot") {
       const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() });
       if (error) throw error;
       // Mensaje neutro: no se revela si la cuenta existe
-      setStatus("Si ese correo tiene una cuenta, recibirás un enlace para elegir una contraseña nueva. Puede tardar un minuto.", "ok");
+      setAuthStatus("Si ese correo tiene una cuenta, recibirás un enlace para elegir una contraseña nueva. Puede tardar un minuto.", "ok");
     } else if (mode === "recovery") {
       const { error } = await db.auth.updateUser({ password });
       if (error) throw error;
@@ -232,7 +232,7 @@ $("#auth-form").addEventListener("submit", async (e) => {
       await onSession(data.session);
     }
   } catch (err) {
-    setStatus(Logic.authErrorText(err), "error");
+    setAuthStatus(Logic.authErrorText(err), "error");
   } finally {
     setBusy(false);
   }
@@ -240,14 +240,14 @@ $("#auth-form").addEventListener("submit", async (e) => {
 
 $("#google-button").addEventListener("click", async () => {
   if (authBusy || !db || !flags.google) return;
-  setStatus("");
+  setAuthStatus("");
   setBusy(true);
   try {
     const { error } = await db.auth.signInWithOAuth({ provider: "google", options: { redirectTo: redirectUrl() } });
     if (error) throw error;
-    setStatus("Redirigiendo a Google…", "ok"); // el navegador sale de la página
+    setAuthStatus("Redirigiendo a Google…", "ok"); // el navegador sale de la página
   } catch (err) {
-    setStatus(Logic.authErrorText(err), "error");
+    setAuthStatus(Logic.authErrorText(err), "error");
     setBusy(false);
   }
 });
