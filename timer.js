@@ -308,8 +308,8 @@ $("#timer-skip").addEventListener("click", () => {
   updateTimer(patch);
 });
 
-$("#timer-reset").addEventListener("click", () => {
-  if (elapsed() > 5000 && !confirm("¿Reiniciar sin guardar la sesión?")) return;
+$("#timer-reset").addEventListener("click", async () => {
+  if (elapsed() > 5000 && !(await askConfirm({ title: "¿Reiniciar sin guardar la sesión?", text: "Se perderá el tiempo que llevas.", confirmLabel: "Reiniciar", danger: true }))) return;
   lastPhaseKey = null;
   updateTimer(resetPatch);
 });
@@ -331,9 +331,9 @@ $("#timer-save").addEventListener("click", async () => {
 
 $("#timer-label").addEventListener("change", () => updateTimer({ label: $("#timer-label").value.trim() }));
 
-$("#timer-mode").addEventListener("change", (e) => {
+$("#timer-mode").addEventListener("change", async (e) => {
   const id = e.target.value;
-  if (elapsed() > 5000 && !confirm("Cambiar de modo reinicia el cronómetro actual. ¿Continuar?")) {
+  if (elapsed() > 5000 && !(await askConfirm({ title: "¿Cambiar de modo?", text: "Cambiar de modo reinicia el cronómetro actual.", confirmLabel: "Continuar" }))) {
     renderTimer();
     return;
   }
@@ -473,7 +473,7 @@ async function writeRoutine(id, name, cycles, steps) {
 async function saveRoutine() {
   const c = cleanDraft();
   if (c.error) {
-    alert(c.error);
+    toast(c.error);
     return;
   }
   try {
@@ -486,7 +486,7 @@ async function saveRoutine() {
     }
     await loadAll();
   } catch (_) {
-    alert("No se pudo guardar la rutina. Comprueba que has ejecutado migracion-v2.sql en Supabase.");
+    toast("No se pudo guardar la rutina. Comprueba que has ejecutado migracion-v2.sql en Supabase.");
   }
 }
 
@@ -498,7 +498,7 @@ $("#routine-edit").addEventListener("click", () => {
 
 $("#routine-del").addEventListener("click", async () => {
   const ar = activeRoutine();
-  if (!ar || !confirm(`¿Borrar la rutina «${ar.routine.name}»?`)) return;
+  if (!ar || !(await askConfirm({ title: `¿Borrar la rutina «${ar.routine.name}»?`, text: "No se puede deshacer.", confirmLabel: "Borrar rutina", danger: true }))) return;
   lastPhaseKey = null;
   await updateTimer({ mode: "stopwatch", routine_id: null, ...resetPatch });
   await run(db.from("routines").delete().eq("id", ar.routine.id)).catch(() => {});
@@ -516,7 +516,7 @@ $("#routine-examples").addEventListener("click", async () => {
       { label: "Descansando", seconds: 600, kind: "break", position: 1 },
     ]);
   } catch (_) {
-    alert("No se pudieron crear. Comprueba que has ejecutado migracion-v2.sql en Supabase.");
+    toast("No se pudieron crear. Comprueba que has ejecutado migracion-v2.sql en Supabase.");
   }
   loadAll();
 });

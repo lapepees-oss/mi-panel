@@ -37,6 +37,7 @@
       <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2.5 12h2M19.5 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></symbol>
       <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 11L12 15.5 16.5 11M5 20h14"/></symbol>
+      <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></symbol>
       <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></symbol>
     </defs>
   </svg>
@@ -130,7 +131,6 @@
       <div class="brand side-brand">
         <img class="brand-mark" src="icons/icon-192.png" alt="" width="38" height="38">
         <div class="brand-text"><div class="brand-name">cloudspace</div><div class="brand-sub">tu espacio para crecer</div></div>
-        <button type="button" class="mini-btn side-hide" id="sideHide" title="Ocultar barra lateral" aria-label="Ocultar barra lateral">«</button>
       </div>
       <div class="side-nav">
         <div class="nav-label">Workspace</div>
@@ -155,7 +155,7 @@
 
     <main class="main" id="main">
       <div class="topbar">
-        <button type="button" class="mini-btn side-show hidden" id="sideShow" title="Mostrar barra lateral" aria-label="Mostrar barra lateral">»</button>
+        <button type="button" class="icon-button side-toggle" id="sideToggle" title="Contraer barra lateral" aria-label="Contraer barra lateral" aria-expanded="true"><svg class="ico"><use href="#i-panel"/></svg></button>
         <div class="breadcrumb">Workspace <span> / </span> <b id="crumb">Resumen</b></div>
         <div class="top-actions">
           <span class="date-chip" id="todayDate"></span>
@@ -242,15 +242,10 @@
       <!-- HÁBITOS -->
       <section class="page hidden" id="page-habits" aria-labelledby="h-habits">
         <div class="page-intro"><h1 id="h-habits">Construye tu ritmo</h1><p>No busques una semana perfecta. Busca repetir lo que te hace bien.</p></div>
-        <form class="add-habit-form" id="habitForm">
-          <input id="habitName" maxlength="80" placeholder="Añade un hábito nuevo…" required aria-label="Nombre del nuevo hábito">
-          <select id="habitEmoji" aria-label="Icono del hábito">
-            <option value="🌱">🌱 Crecimiento</option><option value="💧">💧 Agua</option><option value="📖">📖 Lectura</option>
-            <option value="🏃">🏃 Movimiento</option><option value="🧘">🧘 Calma</option><option value="✍️">✍️ Escritura</option>
-            <option value="🎯">🎯 Enfoque</option><option value="🎸">🎸 Música</option><option value="💤">💤 Sueño</option>
-          </select>
-          <input id="habitHint" maxlength="120" placeholder="Nota (opcional)" aria-label="Nota del hábito">
+        <form class="quick-add" id="habitForm" novalidate>
+          <input id="habitName" maxlength="80" placeholder="Añade un hábito y pulsa Enter…" autocomplete="off" aria-label="Nombre del nuevo hábito">
           <button class="primary-btn" type="submit">+ Crear hábito</button>
+          <button class="secondary" type="button" id="habitDetails">Con nota</button>
         </form>
         <p class="form-error" id="habitError" role="alert"></p>
 
@@ -290,18 +285,10 @@
         <div class="page-intro"><h1 id="h-tasks">Un paso a la vez</h1><p>Ordena tus pendientes y libera espacio mental.</p></div>
 
         <section class="panel task-form-panel">
-          <div class="panel-head"><div><h3>Nueva tarea</h3><p>Fecha, prioridad, proyecto y etiqueta son opcionales.</p></div></div>
-          <form id="task-form">
-            <div class="task-form-grid">
-              <input id="task-title" placeholder="Ej. Entregar la práctica de bases de datos" maxlength="200" required aria-label="Nombre de la tarea">
-              <input id="task-due" type="date" aria-label="Fecha límite">
-              <select id="task-prio" aria-label="Prioridad">
-                <option value="4">P4 · Normal</option><option value="3">P3 · Media</option><option value="2">P2 · Alta</option><option value="1">P1 · Urgente</option>
-              </select>
-              <select id="task-project" aria-label="Proyecto"></select>
-              <input id="task-label" placeholder="Etiqueta" maxlength="60" aria-label="Etiquetas separadas por comas">
-              <button class="primary-btn" type="submit">+ Añadir tarea</button>
-            </div>
+          <form id="task-form" class="quick-add" novalidate>
+            <input id="task-title" placeholder="Añade una tarea y pulsa Enter…" maxlength="200" autocomplete="off" aria-label="Nombre de la tarea">
+            <button class="primary-btn" type="submit">+ Añadir</button>
+            <button class="secondary" type="button" id="task-details">Con detalles</button>
           </form>
           <p class="form-error" id="task-error" role="alert"></p>
         </section>
@@ -389,16 +376,11 @@
 
         <div class="content-grid finance-layout">
           <section class="panel">
-            <div class="panel-head"><div><h3 id="txFormTitle">Añadir movimiento</h3><p>Apunta un ingreso o un gasto.</p></div></div>
-            <form id="txForm" class="finance-form" novalidate>
-              <label>Tipo<select id="txType"><option value="expense">Gasto</option><option value="income">Ingreso</option></select></label>
-              <label>Importe (€)<input id="txAmount" inputmode="decimal" autocomplete="off" placeholder="12,50" required></label>
-              <label class="span2">Concepto<input id="txTitle" maxlength="120" placeholder="Compra, paga, transporte…" required></label>
-              <label>Categoría<select id="txCategory"></select></label>
-              <label>Fecha<input id="txDate" type="date" required></label>
-              <p class="form-error span2" id="txError" role="alert"></p>
-              <div class="row span2"><button class="primary-btn" type="submit" id="txSubmit">+ Guardar movimiento</button><button class="secondary small hidden" type="button" id="txCancel">Cancelar edición</button></div>
-            </form>
+            <div class="panel-head"><div><h3>Añadir movimiento</h3><p>Apunta un ingreso o un gasto.</p></div></div>
+            <div class="row">
+              <button class="primary-btn" type="button" id="addExpense">− Registrar gasto</button>
+              <button class="secondary" type="button" id="addIncome">+ Registrar ingreso</button>
+            </div>
           </section>
           <section class="panel">
             <div class="panel-head"><div><h3>Presupuestos</h3><p>Un límite total del mes y, si quieres, uno por categoría.</p></div></div>
@@ -438,12 +420,7 @@
 
         <section class="panel savings-panel">
           <div class="panel-head"><div><h3>Objetivos de ahorro</h3><p>Define metas y apunta tú mismo cuánto llevas. No se mueve dinero real.</p></div></div>
-          <form id="goalForm" class="savings-form" novalidate>
-            <label>Nombre de la meta<input id="goalName" maxlength="60" placeholder="Ej. Viaje, ordenador…" required></label>
-            <label>Objetivo (€)<input id="goalTarget" inputmode="decimal" autocomplete="off" placeholder="500" required></label>
-            <label>Ahorrado (€)<input id="goalCurrent" inputmode="decimal" autocomplete="off" placeholder="0"></label>
-            <button class="primary-btn" type="submit">+ Crear objetivo</button>
-          </form>
+          <div class="row"><button class="primary-btn" type="button" id="addGoal">+ Nueva meta</button></div>
           <p class="form-error" id="goalError" role="alert"></p>
           <div id="goalList" class="goal-list"></div>
         </section>
@@ -548,6 +525,7 @@
   <script src="config.js"></script>
   <script src="logic.js"></script>
   <script src="core.js"></script>
+  <script src="ui.js"></script>
   <script src="data.js"></script>
   <script src="auth.js"></script>
   <script src="dashboard.js"></script>

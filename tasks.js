@@ -32,7 +32,7 @@ const currentListId = () => (isListView() ? taskUI.view.slice(5) : "");
 
 /* ---------- Cambios (todos pasan por mutate: pintan ya, guardan y releen) ---------- */
 
-function createTask({ title, due_date = null, prio = 4, list_id = null, tags = [] }) {
+function createTask({ title, due_date = null, prio = 4, list_id = null, tags = [], notes = "" }) {
   title = String(title || "").trim();
   if (!title) return Promise.resolve(false);
   if (title.length > 200) {
@@ -40,6 +40,7 @@ function createTask({ title, due_date = null, prio = 4, list_id = null, tags = [
     return Promise.resolve(false);
   }
   const row = { title, prio, due_date, list_id, tags, status: "todo", done: false };
+  if (notes) row.notes = notes;
   return mutate(null, () => run(db.from("tasks").insert(row)));
 }
 
@@ -91,9 +92,10 @@ function cleanProjectName(raw, exceptId) {
 }
 
 async function addProject() {
-  const r = cleanProjectName(prompt("Nombre del nuevo proyecto"));
-  if (r.error) return toast(r.error);
-  if (!r.name) return;
+  const name = await askText({ title: "Nuevo proyecto", placeholder: "Nombre del proyecto", confirmLabel: "Crear proyecto", maxLength: 60, validate: (v) => cleanProjectName(v).error });
+  if (!name) return;
+  const r = cleanProjectName(name);
+  if (r.error || !r.name) return toast(r.error || "Escribe un nombre.");
   try {
     const row = await run(db.from("task_lists").insert({ name: r.name }).select().single());
     state.lists.push(row);
@@ -103,22 +105,24 @@ async function addProject() {
   } catch (_) {}
 }
 
-$("#list-rename").addEventListener("click", () => {
+$("#list-rename").addEventListener("click", async () => {
   const id = currentListId();
   const cur = state.lists.find((l) => l.id === id);
   if (!cur) return;
-  const r = cleanProjectName(prompt("Nuevo nombre del proyecto", cur.name), id);
+  const name = await askText({ title: "Renombrar proyecto", placeholder: "Nombre del proyecto", value: cur.name, confirmLabel: "Guardar", maxLength: 60, validate: (v) => cleanProjectName(v, id).error });
+  if (!name) return;
+  const r = cleanProjectName(name, id);
   if (r.error) return toast(r.error);
   if (!r.name || r.name === cur.name) return;
   mutate(() => (cur.name = r.name), () => run(db.from("task_lists").update({ name: r.name }).eq("id", id)));
 });
 
-$("#list-delete").addEventListener("click", () => {
+$("#list-delete").addEventListener("click", async () => {
   const id = currentListId();
   const cur = state.lists.find((l) => l.id === id);
   if (!cur) return;
   const n = state.tasks.filter((t) => t.list_id === id).length;
-  if (!confirm(`¿Borrar el proyecto «${cur.name}»? Sus ${plural(n, "tarea", "tareas")} no se borran: pasan a la Bandeja de entrada.`)) return;
+  if (!(await askConfirm({ title: `¿Borrar el proyecto «${cur.name}»?`, text: `Sus ${plural(n, "tarea", "tareas")} no se borran: pasan a la Bandeja de entrada.`, confirmLabel: "Borrar proyecto", danger: true }))) return;
   taskUI.view = "pending";
   saveUI();
   mutate(
@@ -130,10 +134,10 @@ $("#list-delete").addEventListener("click", () => {
   );
 });
 
-$("#task-clear-done").addEventListener("click", () => {
+$("#task-clear-done").addEventListener("click", async () => {
   const n = state.tasks.filter((t) => !Logic.isOpen(t)).length;
   if (!n) return;
-  if (!confirm(`¿Eliminar para siempre ${plural(n, "tarea completada", "tareas completadas")}? No se puede deshacer.`)) return;
+  if (!(await askConfirm({ title: `¿Eliminar ${plural(n, "tarea completada", "tareas completadas")}?`, text: "No se puede deshacer.", confirmLabel: "Eliminar", danger: true }))) return;
   mutate(
     () => (state.tasks = state.tasks.filter((t) => Logic.isOpen(t))),
     () => run(db.from("tasks").delete().eq("status", "done"))
@@ -142,35 +146,58 @@ $("#task-clear-done").addEventListener("click", () => {
 
 /* ---------- Formulario, búsqueda y filtros ---------- */
 
+// Fecha por defecto según la vista en la que estás (Hoy / Próximas)
+function defaultDue() {
+  if (taskUI.view === "today") return { due: todayKey(), note: "Añadida para hoy." };
+  if (taskUI.view === "upcoming") return { due: Logic.addDays(todayKey(), 1), note: "Añadida para mañana." };
+  return { due: "", note: "" };
+}
+
+// Entrada rápida: un solo dato, se guarda al pulsar Enter
 $("#task-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const err = $("#task-error");
   err.textContent = "";
   const title = $("#task-title").value.trim();
-  let due = $("#task-due").value;
   if (!title) return (err.textContent = "Escribe el nombre de la tarea.");
   if (title.length > 200) return (err.textContent = "El título es demasiado largo (máximo 200 caracteres).");
-  if (due && !Logic.isDayKey(due)) return (err.textContent = "La fecha no es válida.");
-  let note = "";
-  if (!due && taskUI.view === "today") { due = todayKey(); note = "Añadida para hoy."; }
-  if (!due && taskUI.view === "upcoming") { due = Logic.addDays(todayKey(), 1); note = "Añadida para mañana."; }
+  const { due, note } = defaultDue();
   const btn = e.submitter || $("#task-form button[type=submit]");
   btn.disabled = true;
-  const ok = await createTask({
-    title,
-    due_date: due || null,
-    prio: Number($("#task-prio").value) || 4,
-    list_id: $("#task-project").value || null,
-    tags: Logic.normalizeTags($("#task-label").value),
-  });
+  const ok = await createTask({ title, due_date: due || null, list_id: isListView() ? currentListId() : null });
   btn.disabled = false;
   if (!ok) return (err.textContent = "No se pudo guardar la tarea.");
   $("#task-title").value = "";
-  $("#task-due").value = "";
-  $("#task-label").value = "";
-  $("#task-prio").value = "4";
   if (note) toast(note);
   $("#task-title").focus();
+});
+
+// Con detalles: asistente paso a paso
+function openTaskWizard(title = "") {
+  const { due } = defaultDue();
+  const tomorrow = Logic.addDays(todayKey(), 1);
+  const steps = [
+    { key: "title", label: "¿Cómo se llama la tarea?", type: "text", required: true, requiredMessage: "Escribe el nombre de la tarea.", maxLength: 200, summaryLabel: "Tarea" },
+    { key: "notes", label: "¿Quieres añadir una descripción?", type: "textarea", hint: "Opcional.", summaryLabel: "Descripción" },
+    { key: "due", label: "¿Para cuándo?", type: "date", hint: "Opcional.", summaryLabel: "Fecha",
+      quick: [{ label: "Hoy", value: todayKey() }, { label: "Mañana", value: tomorrow }, { label: "En una semana", value: Logic.addDays(todayKey(), 7) }],
+      validate: (v) => (Logic.isDayKey(v) ? "" : "La fecha no es válida."), format: (v) => (v ? Logic.longDate(v) : "Sin fecha") },
+    { key: "prio", label: "¿Qué prioridad tiene?", type: "choice", summaryLabel: "Prioridad",
+      options: [{ value: 4, label: "Normal" }, { value: 3, label: "Media" }, { value: 2, label: "Alta" }, { value: 1, label: "Urgente" }] },
+    ...(state.lists.length ? [{ key: "list", label: "¿En qué proyecto?", type: "choice", summaryLabel: "Proyecto",
+      options: [{ value: "", label: "Bandeja de entrada" }, ...state.lists.map((l) => ({ value: l.id, label: l.name }))] }] : []),
+    { key: "tags", label: "¿Alguna etiqueta?", type: "text", hint: "Opcional. Sepáralas con comas.", maxLength: 80, summaryLabel: "Etiquetas" },
+  ];
+  openWizard({
+    steps, earlyAfter: 0, submitLabel: "Crear tarea", doneMessage: "Tarea creada.",
+    initial: { title, notes: "", due, prio: 4, list: isListView() ? currentListId() : "", tags: "" },
+    onSubmit: (v) => createTask({ title: v.title.trim(), notes: (v.notes || "").trim(), due_date: v.due || null, prio: Number(v.prio) || 4, list_id: v.list || null, tags: Logic.normalizeTags(v.tags || "") }),
+  });
+}
+$("#task-details").addEventListener("click", () => {
+  const t = $("#task-title").value.trim();
+  $("#task-title").value = "";
+  openTaskWizard(t);
 });
 
 $("#task-search").addEventListener("input", (e) => {
@@ -222,13 +249,6 @@ function renderChips() {
 }
 
 function renderTaskControls() {
-  // Selector de proyecto del formulario: conserva lo elegido si sigue existiendo
-  const sel = $("#task-project");
-  const prev = sel.value;
-  sel.replaceChildren(h("option", { value: "", text: "Bandeja de entrada" }), ...state.lists.map((l) => h("option", { value: l.id, text: "# " + l.name })));
-  sel.value = isListView() ? currentListId() : state.lists.some((l) => l.id === prev) ? prev : "";
-  sel.setAttribute("aria-label", "Proyecto");
-
   const labels = [...new Set(state.tasks.flatMap((t) => t.tags || []))].sort((a, b) => a.localeCompare(b, "es"));
   if (taskUI.label && !labels.includes(taskUI.label)) taskUI.label = "";
   const fl = $("#task-filter-label");
@@ -498,8 +518,8 @@ function renderTaskDialog() {
         h("span", { class: "muted", text: "Creada el " + new Date(t.created_at).toLocaleDateString("es-ES") + (t.completed_at ? " · completada el " + new Date(t.completed_at).toLocaleDateString("es-ES") : "") }),
         h("button", {
           type: "button", class: "secondary danger", text: "Borrar tarea",
-          onclick: () => {
-            if (!confirm(`¿Borrar «${t.title}»? No se puede deshacer.`)) return;
+          onclick: async () => {
+            if (!(await askConfirm({ title: `¿Borrar «${t.title}»?`, text: "No se puede deshacer.", confirmLabel: "Borrar", danger: true }))) return;
             closeTask();
             deleteTask(id);
           },

@@ -4,7 +4,6 @@
 // No hay conexión con ningún banco: todo lo escribes tú.
 
 let finMonth = null; // mes que se muestra (YYYY-MM); null = el actual
-let txEditId = null;
 
 const currentMonth = () => Logic.monthKey(todayKey());
 const shownMonth = () => finMonth || currentMonth();
@@ -65,11 +64,6 @@ function renderFinance() {
   $("#finBudgetFoot").textContent = bs.total
     ? bs.total.over ? "Te has pasado del presupuesto" : `${100 - bs.total.pct}% de ${Logic.formatEUR(bs.total.limit)}`
     : "Define un presupuesto abajo";
-
-  // Formulario de movimiento: las categorías dependen del tipo
-  const type = $("#txType").value;
-  fillCategorySelect($("#txCategory"), type === "income" ? incomeCategories() : expenseCategories());
-  if (!$("#txDate").value) $("#txDate").value = todayKey();
 
   // Presupuestos
   fillCategorySelect($("#budgetCategory"), ["", ...expenseCategories()]);
@@ -165,71 +159,50 @@ function renderGoals() {
 
 /* ---------- Movimientos ---------- */
 
-function resetTxForm() {
-  txEditId = null;
-  $("#txFormTitle").textContent = "Añadir movimiento";
-  $("#txSubmit").textContent = "+ Guardar movimiento";
-  show($("#txCancel"), false);
-  $("#txAmount").value = "";
-  $("#txTitle").value = "";
-  $("#txError").textContent = "";
-}
-
 function startEditTx(t) {
-  txEditId = t.id;
-  $("#txType").value = t.type;
-  fillCategorySelect($("#txCategory"), t.type === "income" ? incomeCategories() : expenseCategories(), t.category);
-  $("#txAmount").value = Logic.centsToPlain(Logic.centsFromDb(t.amount));
-  $("#txTitle").value = t.title;
-  $("#txDate").value = t.tx_date;
-  $("#txFormTitle").textContent = "Editar movimiento";
-  $("#txSubmit").textContent = "Guardar cambios";
-  show($("#txCancel"), true);
-  $("#txError").textContent = "";
-  $("#txForm").scrollIntoView({ behavior: "smooth", block: "center" });
-  $("#txTitle").focus();
+  openTxWizard(t.type, t);
 }
 
-function confirmDeleteTx(t) {
+async function confirmDeleteTx(t) {
   const cents = Logic.centsFromDb(t.amount);
-  if (confirm(`¿Borrar «${t.title}» (${Logic.formatEUR(cents)})? No se puede deshacer.`)) {
-    if (txEditId === t.id) resetTxForm();
-    deleteTransaction(t.id);
-  }
+  if (await askConfirm({ title: `¿Borrar «${t.title}»?`, text: `${Logic.formatEUR(cents)} · ${Logic.shortDate(t.tx_date)}. No se puede deshacer.`, confirmLabel: "Borrar", danger: true })) deleteTransaction(t.id);
 }
 
-$("#txType").addEventListener("change", renderFinance);
-$("#txCancel").addEventListener("click", () => {
-  resetTxForm();
-  renderFinance();
-});
-
-$("#txForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const err = $("#txError");
-  err.textContent = "";
-  const amt = Logic.parseCents($("#txAmount").value);
-  const title = $("#txTitle").value.trim();
-  const date = $("#txDate").value;
-  const category = $("#txCategory").value;
-  if (!amt.ok) return (err.textContent = amt.error), $("#txAmount").focus();
-  if (!title) return (err.textContent = "Escribe un concepto."), $("#txTitle").focus();
-  if (title.length > 120) return (err.textContent = "El concepto es demasiado largo (máximo 120 caracteres).");
-  if (!Logic.isDayKey(date)) return (err.textContent = "Elige una fecha válida."), $("#txDate").focus();
-  const row = { type: $("#txType").value, cents: amt.cents, title, category, tx_date: date };
-  const btn = $("#txSubmit");
-  btn.disabled = true;
-  const ok = txEditId ? await updateTransaction(txEditId, row) : await addTransaction(row);
-  btn.disabled = false;
-  if (!ok) return (err.textContent = "No se pudo guardar el movimiento.");
-  const wasEdit = !!txEditId;
-  resetTxForm();
-  if (Logic.monthKey(date) !== shownMonth()) {
-    finMonth = Logic.monthKey(date) === currentMonth() ? null : Logic.monthKey(date);
-    toast(`Guardado en ${Logic.monthLabel(Logic.monthKey(date))}.`);
-  } else toast(wasEdit ? "Movimiento actualizado." : "Movimiento guardado.");
-  renderFinance();
-});
+// Asistente de movimiento. Los ingresos no piden concepto: se guardan con el nombre de su categoría.
+function openTxWizard(type, existing = null) {
+  const editing = !!existing;
+  const today = todayKey();
+  const catOptions = (ty) => (ty === "income" ? incomeCategories() : expenseCategories()).map((c) => ({ value: c, label: c }));
+  const steps = [
+    { key: "type", label: "¿Es un gasto o un ingreso?", type: "choice", summaryLabel: "Tipo", options: [{ value: "expense", label: "Gasto" }, { value: "income", label: "Ingreso" }] },
+    { key: "amount", label: "¿Cuánto es?", type: "amount", placeholder: "12,50", required: true, requiredMessage: "Escribe el importe.", maxLength: 14, summaryLabel: "Importe (€)",
+      validate: (v) => { const r = Logic.parseCents(v); return r.ok ? "" : r.error; }, format: (v) => { const r = Logic.parseCents(v); return r.ok ? Logic.formatEUR(r.cents) : v; } },
+    { key: "title", label: "¿Cuál es el concepto?", type: "text", placeholder: "Compra, transporte…", required: true, requiredMessage: "Escribe un concepto.", maxLength: 120, summaryLabel: "Concepto", when: (v) => v.type === "expense" },
+    { key: "category", label: "¿En qué categoría?", type: "choice", summaryLabel: "Categoría", options: (v) => catOptions(v.type) },
+    { key: "date", label: "¿Qué día fue?", type: "date", required: true, requiredMessage: "Elige una fecha.", summaryLabel: "Fecha",
+      quick: [{ label: "Hoy", value: today }, { label: "Ayer", value: Logic.addDays(today, -1) }],
+      validate: (v) => (Logic.isDayKey(v) ? "" : "Elige una fecha válida."), format: (v) => (Logic.isDayKey(v) ? Logic.longDate(v) : v) },
+  ];
+  const initial = existing
+    ? { type: existing.type, amount: Logic.centsToPlain(Logic.centsFromDb(existing.amount)), title: existing.type === "expense" ? existing.title : "", category: existing.category, date: existing.tx_date }
+    : { type, amount: "", title: "", category: "", date: today };
+  openWizard({
+    steps, initial, submitLabel: editing ? "Guardar cambios" : "Guardar movimiento", doneMessage: editing ? "Movimiento actualizado." : "Movimiento guardado.",
+    onSubmit: async (v) => {
+      const amt = Logic.parseCents(v.amount);
+      if (!amt.ok) return amt.error;
+      const valid = catOptions(v.type).map((o) => o.value);
+      const cat = valid.includes(v.category) ? v.category : valid[valid.length - 1];
+      const title = v.type === "income" ? (existing && existing.type === "income" ? existing.title : cat) : v.title.trim();
+      const row = { type: v.type, cents: amt.cents, title, category: cat, tx_date: v.date };
+      const ok = editing ? await updateTransaction(existing.id, row) : await addTransaction(row);
+      if (ok && Logic.monthKey(v.date) !== shownMonth()) { finMonth = Logic.monthKey(v.date) === currentMonth() ? null : Logic.monthKey(v.date); renderFinance(); }
+      return !!ok;
+    },
+  });
+}
+$("#addExpense").addEventListener("click", () => openTxWizard("expense"));
+$("#addIncome").addEventListener("click", () => openTxWizard("income"));
 
 ["txFilterType", "txSearch"].forEach((id) => $("#" + id).addEventListener("input", renderFinance));
 $("#finPrev").addEventListener("click", () => {
@@ -256,9 +229,9 @@ function editBudget(category) {
   $("#budgetAmount").focus();
 }
 
-function removeBudget(category) {
+async function removeBudget(category) {
   const name = category || "Total mensual";
-  if (confirm(`¿Quitar el presupuesto «${name}»?`)) setBudget(category, 0);
+  if (await askConfirm({ title: `¿Quitar el presupuesto «${name}»?`, confirmLabel: "Quitar", danger: true })) setBudget(category, 0);
 }
 
 $("#budgetCategory").addEventListener("change", (e) => {
@@ -281,25 +254,37 @@ $("#budgetForm").addEventListener("submit", async (e) => {
 
 /* ---------- Objetivos de ahorro ---------- */
 
-$("#goalForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const err = $("#goalError");
-  err.textContent = "";
-  const name = $("#goalName").value.trim();
-  const target = Logic.parseCents($("#goalTarget").value);
-  const current = $("#goalCurrent").value.trim() ? Logic.parseCents($("#goalCurrent").value, { allowZero: true }) : { ok: true, cents: 0 };
-  if (!name) return (err.textContent = "Ponle un nombre a la meta."), $("#goalName").focus();
-  if (name.length > 60) return (err.textContent = "El nombre es demasiado largo (máximo 60 caracteres).");
-  if (!target.ok) return (err.textContent = "Objetivo: " + target.error), $("#goalTarget").focus();
-  if (!current.ok) return (err.textContent = "Ahorrado: " + current.error), $("#goalCurrent").focus();
-  if (!(await addGoal({ name, target: target.cents, current: current.cents }))) return (err.textContent = "No se pudo crear el objetivo.");
-  $("#goalName").value = $("#goalTarget").value = $("#goalCurrent").value = "";
-  toast("Objetivo creado.");
+const amountStep = (key, label, extra = {}) => ({
+  key, label, type: "amount", maxLength: 14, placeholder: "0", ...extra,
+  validate: (v) => { const r = Logic.parseCents(v, { allowZero: !extra.required || key === "current" }); return r.ok ? "" : r.error; },
+  format: (v) => { const r = Logic.parseCents(v || "0", { allowZero: true }); return r.ok ? Logic.formatEUR(r.cents) : v; },
 });
 
-function contribute(g) {
-  const raw = prompt(`¿Cuánto añades a «${g.name}»? (usa un número negativo no: para restar, edita la meta)`, "");
-  if (raw === null) return;
+// Nueva meta: asistente paso a paso
+$("#addGoal").addEventListener("click", () => {
+  openWizard({
+    steps: [
+      { key: "name", label: "¿Cómo se llama la meta?", type: "text", placeholder: "Viaje, ordenador…", required: true, requiredMessage: "Ponle un nombre a la meta.", maxLength: 60, summaryLabel: "Meta" },
+      amountStep("target", "¿Cuánto quieres ahorrar?", { required: true, requiredMessage: "Escribe el objetivo.", placeholder: "500", summaryLabel: "Objetivo (€)" }),
+      amountStep("current", "¿Cuánto llevas ya?", { hint: "Opcional.", summaryLabel: "Ahorrado (€)" }),
+    ],
+    initial: { name: "", target: "", current: "" }, earlyAfter: 1, submitLabel: "Crear meta", doneMessage: "Meta creada.",
+    onSubmit: (v) => {
+      const target = Logic.parseCents(v.target);
+      const current = v.current && String(v.current).trim() ? Logic.parseCents(v.current, { allowZero: true }) : { ok: true, cents: 0 };
+      if (!target.ok) return "Objetivo: " + target.error;
+      if (!current.ok) return "Ahorrado: " + current.error;
+      return addGoal({ name: v.name.trim(), target: target.cents, current: current.cents });
+    },
+  });
+});
+
+async function contribute(g) {
+  const raw = await askText({
+    title: `Añadir a «${g.name}»`, placeholder: "Importe en euros, p. ej. 25", confirmLabel: "Añadir", maxLength: 14,
+    validate: (v) => { const r = Logic.parseCents(v); return r.ok ? "" : r.error; },
+  });
+  if (raw == null) return;
   const amt = Logic.parseCents(raw);
   if (!amt.ok) return toast(amt.error);
   updateGoal(g.id, { name: g.name, target: Logic.centsFromDb(g.target), current: Logic.centsFromDb(g.current) + amt.cents });
@@ -328,8 +313,8 @@ function openGoalDialog(g) {
       h("h2", { style: "margin-top:0", text: "Editar meta de ahorro" }),
       field("Nombre", name), field("Objetivo (€)", target), field("Ahorrado (€)", current), err,
       h("div", { class: "row", style: "margin-top:14px;justify-content:space-between" },
-        h("button", { type: "button", class: "secondary danger", text: "Borrar meta", onclick: () => {
-          if (confirm(`¿Borrar la meta «${g.name}»?`)) { closeDialog(dlg); deleteGoal(g.id); }
+        h("button", { type: "button", class: "secondary danger", text: "Borrar meta", onclick: async () => {
+          if (await askConfirm({ title: `¿Borrar la meta «${g.name}»?`, text: "No se puede deshacer.", confirmLabel: "Borrar meta", danger: true })) { closeDialog(dlg); deleteGoal(g.id); }
         } }),
         h("span", { class: "row" },
           h("button", { type: "button", class: "secondary", text: "Cancelar", onclick: () => closeDialog(dlg) }),

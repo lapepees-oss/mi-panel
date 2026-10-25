@@ -46,12 +46,11 @@ function habitToggle(hb, key, on, { future = false } = {}) {
 }
 
 async function renameHabit(hb) {
-  const name = (prompt("Nuevo nombre del hábito", hb.name) || "").trim();
+  const name = await askText({
+    title: "Renombrar hábito", placeholder: "Nombre del hábito", value: hb.name, maxLength: 80,
+    validate: (v) => (state.habits.some((x) => x.id !== hb.id && x.name.toLowerCase() === v.toLowerCase()) ? "Ya tienes un hábito con ese nombre." : ""),
+  });
   if (!name || name === hb.name) return;
-  if (name.length > 80) return toast("El nombre es demasiado largo (máximo 80 caracteres).");
-  if (state.habits.some((x) => x.id !== hb.id && x.name.toLowerCase() === name.toLowerCase())) {
-    return toast("Ya tienes un hábito con ese nombre.");
-  }
   updateHabit(hb.id, { name });
 }
 
@@ -91,8 +90,8 @@ function habitRow(hb, weekKeys, byHabit, today) {
       h("button", { type: "button", class: "icon-btn", title: "Renombrar", "aria-label": `Renombrar ${hb.name}`, text: "✎", onclick: () => renameHabit(hb) }),
       h("button", {
         type: "button", class: "icon-btn", title: "Borrar hábito", "aria-label": `Borrar ${hb.name}`, text: "✕",
-        onclick: () => {
-          if (confirm(`¿Borrar «${hb.name}» y todo su historial? No se puede deshacer.`)) deleteHabit(hb.id);
+        onclick: async () => {
+          if (await askConfirm({ title: `¿Borrar «${hb.name}»?`, text: "Se borrará también todo su historial. No se puede deshacer.", confirmLabel: "Borrar hábito", danger: true })) deleteHabit(hb.id);
         },
       })
     ),
@@ -139,25 +138,47 @@ function renderHabits() {
 
 /* ---------- Eventos ---------- */
 
+const HABIT_EMOJI = "🌱"; // los hábitos ya no se clasifican por categoría; se conserva el icono de los existentes
+
+function habitNameProblem(name) {
+  if (!name) return "Escribe un nombre para el hábito.";
+  if (name.length > 80) return "El nombre es demasiado largo (máximo 80 caracteres).";
+  if (state.habits.some((x) => x.name.toLowerCase() === name.toLowerCase())) return "Ya tienes un hábito con ese nombre.";
+  return "";
+}
+
+// Entrada rápida: solo el nombre
 $("#habitForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const err = $("#habitError");
   const name = $("#habitName").value.trim();
-  const hint = $("#habitHint").value.trim();
   err.textContent = "";
-  if (!name) return (err.textContent = "Escribe un nombre para el hábito.");
-  if (state.habits.some((x) => x.name.toLowerCase() === name.toLowerCase())) return (err.textContent = "Ya tienes un hábito con ese nombre.");
+  const problem = habitNameProblem(name);
+  if (problem) return (err.textContent = problem);
   const btn = e.submitter || $("#habitForm button[type=submit]");
   btn.disabled = true;
-  const ok = await createHabit({ name, emoji: $("#habitEmoji").value, hint });
+  const ok = await createHabit({ name, emoji: HABIT_EMOJI, hint: "" });
   btn.disabled = false;
   if (ok) {
     $("#habitName").value = "";
-    $("#habitHint").value = "";
     toast("Hábito creado. Márcalo hoy si ya lo has hecho.");
   } else {
     err.textContent = "No se pudo crear el hábito.";
   }
+});
+
+// Con nota: asistente paso a paso
+$("#habitDetails").addEventListener("click", () => {
+  const first = $("#habitName").value.trim();
+  $("#habitName").value = "";
+  openWizard({
+    steps: [
+      { key: "name", label: "¿Cómo se llama el hábito?", type: "text", required: true, requiredMessage: "Escribe un nombre para el hábito.", maxLength: 80, summaryLabel: "Hábito", validate: habitNameProblem },
+      { key: "hint", label: "¿Quieres añadir una nota?", type: "textarea", hint: "Opcional. Por ejemplo, cuándo o cómo lo harás.", maxLength: 120, summaryLabel: "Nota" },
+    ],
+    initial: { name: first, hint: "" }, earlyAfter: 0, submitLabel: "Crear hábito", doneMessage: "Hábito creado. Márcalo hoy si ya lo has hecho.",
+    onSubmit: (v) => createHabit({ name: v.name.trim(), emoji: HABIT_EMOJI, hint: (v.hint || "").trim() }),
+  });
 });
 
 $("#weekPrev").addEventListener("click", () => {
