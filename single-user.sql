@@ -9,7 +9,7 @@
 do $$
 declare
   t text;
-  allowed text := lower('TU_CORREO@ejemplo.com');
+  allowed text := lower('soymatheus.lemos@gmail.com');
 begin
   foreach t in array array[
     'tasks', 'habits', 'habit_logs', 'timer', 'timer_sessions',

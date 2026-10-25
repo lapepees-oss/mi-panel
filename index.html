@@ -129,7 +129,8 @@
     <aside class="sidebar">
       <div class="brand side-brand">
         <img class="brand-mark" src="icons/icon-192.png" alt="" width="38" height="38">
-        <div><div class="brand-name">cloudspace</div><div class="brand-sub">tu espacio para crecer</div></div>
+        <div class="brand-text"><div class="brand-name">cloudspace</div><div class="brand-sub">tu espacio para crecer</div></div>
+        <button type="button" class="mini-btn side-hide" id="sideHide" title="Ocultar barra lateral" aria-label="Ocultar barra lateral">«</button>
       </div>
       <div class="side-nav">
         <div class="nav-label">Workspace</div>
@@ -143,21 +144,6 @@
         </nav>
       </div>
       <div class="sidebar-bottom">
-        <div class="focus-card sidebar-heat-card" id="sideHeatCard" data-size="m">
-          <div class="side-heat-head">
-            <strong>Mapa de constancia</strong>
-            <span class="side-heat-tools">
-              <button type="button" class="mini-btn" id="sideHeatSmaller" title="Más pequeño" aria-label="Hacer el mapa más pequeño">−</button>
-              <button type="button" class="mini-btn" id="sideHeatBigger" title="Más grande" aria-label="Hacer el mapa más grande">+</button>
-              <button type="button" class="mini-btn" id="sideHeatToggle" title="Minimizar" aria-label="Minimizar el mapa" aria-expanded="true">▾</button>
-            </span>
-          </div>
-          <div class="side-heat-body" id="sideHeatBody">
-            <p>Tus últimos 35 días.</p>
-            <div id="sidebarHeatmap" class="heatmap sidebar-heatmap" role="img" aria-label="Mapa de constancia de 35 días"></div>
-          </div>
-          <small id="sidebarHeatCaption"></small>
-        </div>
         <div class="profile">
           <div class="avatar" aria-hidden="true">☁️</div>
           <div class="profile-text"><strong>Mi espacio</strong><small id="userEmail"></small></div>
@@ -165,9 +151,11 @@
         </div>
       </div>
     </aside>
+    <div class="side-resizer" id="sideResizer" role="separator" aria-orientation="vertical" aria-label="Cambiar el ancho de la barra lateral (flechas; doble clic para restablecer)" tabindex="0"></div>
 
     <main class="main" id="main">
       <div class="topbar">
+        <button type="button" class="mini-btn side-show hidden" id="sideShow" title="Mostrar barra lateral" aria-label="Mostrar barra lateral">»</button>
         <div class="breadcrumb">Workspace <span> / </span> <b id="crumb">Resumen</b></div>
         <div class="top-actions">
           <span class="date-chip" id="todayDate"></span>
@@ -542,12 +530,12 @@
 
     <!-- Navegación inferior (móvil) -->
     <nav class="bottom-nav" aria-label="Secciones">
-      <a href="#/dashboard" data-page="dashboard"><svg class="ico"><use href="#i-dash"/></svg><span>Resumen</span></a>
-      <a href="#/habits" data-page="habits"><svg class="ico"><use href="#i-habit"/></svg><span>Hábitos</span></a>
-      <a href="#/tasks" data-page="tasks"><svg class="ico"><use href="#i-task"/></svg><span>Tareas</span></a>
-      <a href="#/journal" data-page="journal"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
-      <a href="#/finance" data-page="finance"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
-      <a href="#/timer" data-page="timer"><svg class="ico"><use href="#i-timer"/></svg><span>Tiempo</span></a>
+      <a href="#/dashboard" data-page="dashboard" aria-label="Resumen" title="Resumen"><svg class="ico"><use href="#i-dash"/></svg><span>Resumen</span></a>
+      <a href="#/habits" data-page="habits" aria-label="Hábitos" title="Hábitos"><svg class="ico"><use href="#i-habit"/></svg><span>Hábitos</span></a>
+      <a href="#/tasks" data-page="tasks" aria-label="Tareas" title="Tareas"><svg class="ico"><use href="#i-task"/></svg><span>Tareas</span></a>
+      <a href="#/journal" data-page="journal" aria-label="Diario" title="Diario"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
+      <a href="#/finance" data-page="finance" aria-label="Finanzas" title="Finanzas"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
+      <a href="#/timer" data-page="timer" aria-label="Cronómetro" title="Cronómetro"><svg class="ico"><use href="#i-timer"/></svg><span>Tiempo</span></a>
     </nav>
   </div>
 
@@ -569,6 +557,7 @@
   <script src="finance.js"></script>
   <script src="timer.js"></script>
   <script src="prefs.js"></script>
+  <script src="sidebar.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

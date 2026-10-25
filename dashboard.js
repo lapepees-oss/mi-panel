@@ -9,10 +9,8 @@ function renderDashboard() {
   /* Mapa de constancia (ancho completo arriba y mini en la barra lateral) */
   const cells = Logic.heatCells(state.habits, byHabit, today, 35);
   paintHeat($("#activityHeatmap"), cells);
-  paintHeat($("#sidebarHeatmap"), cells);
   const active = Logic.activeDays(cells);
   $("#heatmapCaption").textContent = `${active} de 35 días activos`;
-  $("#sidebarHeatCaption").textContent = `${active} de 35 días con actividad`;
 
   /* Estadísticas */
   const dueNow = state.tasks.filter((t) => Logic.inView("today", t, today));
@@ -105,31 +103,5 @@ $("#quickTaskForm").addEventListener("submit", async (e) => {
   const ok = await createTask({ title, due_date: todayKey() });
   if (ok) input.value = "";
 });
-
-/* Tarjeta lateral: tamaño y minimizado se guardan en este navegador */
-const SIDE_SIZES = ["s", "m", "l"];
-function applySideHeat() {
-  const cfgSide = store.get("sideHeat", { size: "m", collapsed: false });
-  const size = SIDE_SIZES.includes(cfgSide.size) ? cfgSide.size : "m";
-  const card = $("#sideHeatCard");
-  card.dataset.size = size;
-  card.classList.toggle("collapsed", !!cfgSide.collapsed);
-  const t = $("#sideHeatToggle");
-  t.setAttribute("aria-expanded", String(!cfgSide.collapsed));
-  t.title = t.ariaLabel = cfgSide.collapsed ? "Mostrar mapa" : "Minimizar";
-  t.setAttribute("aria-label", cfgSide.collapsed ? "Mostrar el mapa" : "Minimizar el mapa");
-  $("#sideHeatSmaller").disabled = !!cfgSide.collapsed || size === "s";
-  $("#sideHeatBigger").disabled = !!cfgSide.collapsed || size === "l";
-}
-function changeSideHeat(patch) {
-  const cur = store.get("sideHeat", { size: "m", collapsed: false });
-  store.set("sideHeat", { ...cur, ...patch });
-  applySideHeat();
-}
-const sideSizeNow = () => store.get("sideHeat", { size: "m" }).size || "m";
-$("#sideHeatSmaller").addEventListener("click", () => changeSideHeat({ size: SIDE_SIZES[Math.max(0, SIDE_SIZES.indexOf(sideSizeNow()) - 1)] }));
-$("#sideHeatBigger").addEventListener("click", () => changeSideHeat({ size: SIDE_SIZES[Math.min(2, SIDE_SIZES.indexOf(sideSizeNow()) + 1)] }));
-$("#sideHeatToggle").addEventListener("click", () => changeSideHeat({ collapsed: !store.get("sideHeat", { collapsed: false }).collapsed }));
-applySideHeat();
 
 renderers.push(renderDashboard);
