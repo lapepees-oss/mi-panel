@@ -18,7 +18,7 @@ Espacio personal privado, instalable como PWA: **resumen con mapa de constancia 
 
 ## Lo que NO hace
 - No hay cola de escritura sin conexión: sin red puedes abrir la app pero los cambios no se guardan.
-- No hay notificaciones push; el cronómetro avisa solo con la app abierta.
+- No hay notificaciones push: las notificaciones son locales y solo funcionan mientras el navegador mantiene la app viva.
 - No se conecta a bancos: los movimientos se escriben a mano.
 
 ## Puesta en marcha

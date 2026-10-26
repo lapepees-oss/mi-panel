@@ -124,11 +124,8 @@ renderers.push(renderPrefs);
 
 /* ---------- Notificaciones ---------- */
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-$("#pushHour").replaceChildren(...HOURS.map((hh) => h("option", { value: String(hh), text: String(hh).padStart(2, "0") + ":00" })));
-let notifBusy = false;
 
-async function renderNotifPrefs() {
+function renderNotifPrefs() {
   const prefs = notifPrefs();
   const supported = notifSupported();
   const granted = notifGranted();
@@ -142,24 +139,6 @@ async function renderNotifPrefs() {
   $("#notifPhase").checked = prefs.phase;
   $("#notifProgress").checked = prefs.progress;
   [$("#notifPhase"), $("#notifProgress"), $("#notifTest")].forEach((el) => (el.disabled = !granted));
-
-  // Push
-  const configured = pushConfigured();
-  show($("#pushBox"), true);
-  const sub = configured && granted ? await currentPushSub().catch(() => null) : null;
-  const settings = configured && user ? notifSettings || (await loadNotifSettings()) : null;
-  $("#pushEnable").checked = !!sub;
-  $("#pushEnable").disabled = !configured || !granted || notifBusy;
-  $("#pushHint").textContent = !configured
-    ? "Pendiente de configurar: falta VAPID_PUBLIC_KEY en config.js y la función en Supabase (mira el README)."
-    : !granted ? "Primero permite las notificaciones."
-    : settings === null ? "Falta ejecutar migracion-v4.sql en Supabase."
-    : "Envío push desde tu Supabase.";
-  const ready = configured && granted && !!sub && !!settings;
-  $("#pushTimer").disabled = $("#pushDaily").disabled = $("#pushHour").disabled = !ready;
-  $("#pushTimer").checked = ready ? !!settings.timer_enabled : false;
-  $("#pushDaily").checked = ready ? !!settings.daily_enabled : false;
-  $("#pushHour").value = String(settings ? settings.daily_hour : 8);
 }
 
 $("#notifEnable").addEventListener("click", async () => {
@@ -176,21 +155,7 @@ $("#notifTest").addEventListener("click", async () => {
   const ok = await showSystem("Cloudspace", "Así se verán tus avisos.", { tag: "cloudspace-test" });
   toast(ok ? "Notificación enviada." : "No se pudo mostrar la notificación.");
 });
-$("#pushEnable").addEventListener("change", async (e) => {
-  notifBusy = true;
-  try {
-    if (e.target.checked) { await enablePush(); await saveNotifSettings({}); toast("Avisos con la app cerrada activados."); }
-    else { await disablePush(); toast("Avisos con la app cerrada desactivados."); }
-  } catch (err) {
-    toast(err && err.message ? err.message : "No se pudo cambiar el envío push.");
-  }
-  notifBusy = false;
-  renderNotifPrefs();
-});
-$("#pushTimer").addEventListener("change", (e) => saveNotifSettings({ timer_enabled: e.target.checked }).catch(() => toast("No se pudo guardar.")));
-$("#pushDaily").addEventListener("change", (e) => saveNotifSettings({ daily_enabled: e.target.checked }).catch(() => toast("No se pudo guardar.")));
-$("#pushHour").addEventListener("change", (e) => saveNotifSettings({ daily_hour: Number(e.target.value) }).catch(() => toast("No se pudo guardar.")));
-renderers.push(() => { if (!notifBusy) renderNotifPrefs(); });
+renderers.push(renderNotifPrefs);
 
 /* ---------- Feedback recibido (solo el dueño, no el invitado) ---------- */
 

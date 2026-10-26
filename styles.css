@@ -543,7 +543,6 @@ textarea.wiz-input { font-size: 16px; line-height: 1.5; }
 
 /* Interruptores de notificaciones */
 .notif-list { display: grid; gap: 14px; }
-.notif-push { display: grid; gap: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .switch-row { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
 .switch-row input { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--blue); flex: none; }
 .switch-row b { display: block; font-size: 14px; }

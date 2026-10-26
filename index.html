@@ -485,12 +485,6 @@
             <button class="primary-btn hidden" id="notifEnable" type="button">Permitir notificaciones</button>
             <label class="switch-row"><input type="checkbox" id="notifPhase"><span><b>Avisar al cambiar de fase</b><small>Cuando empieza un descanso o termina una rutina.</small></span></label>
             <label class="switch-row"><input type="checkbox" id="notifProgress"><span><b>Mostrar el tiempo del cronómetro</b><small>Una notificación con lo que queda de la fase (o por cuánto vas) cuando sales de la app.</small></span></label>
-            <div id="pushBox" class="notif-push">
-              <label class="switch-row"><input type="checkbox" id="pushEnable"><span><b>Recibir avisos con la app cerrada</b><small id="pushHint">Envío push desde tu Supabase.</small></span></label>
-              <label class="switch-row"><input type="checkbox" id="pushTimer"><span><b>Fin de fase del cronómetro</b><small>Puede llegar con hasta un minuto de retraso.</small></span></label>
-              <label class="switch-row"><input type="checkbox" id="pushDaily"><span><b>Resumen diario</b><small>Tareas de hoy y hábitos pendientes.</small></span></label>
-              <label class="field-inline">Hora del resumen <select id="pushHour"></select></label>
-            </div>
             <div class="row"><button class="secondary" id="notifTest" type="button">Enviar una notificación de prueba</button></div>
           </div>
         </section>
@@ -528,7 +522,7 @@
           <ul class="honest">
             <li><b>Sincroniza</b> entre dispositivos a través de Supabase (necesita conexión; no hay cola sin conexión).</li>
             <li><b>No</b> se conecta a bancos: los movimientos se escriben a mano.</li>
-            <li>Las notificaciones locales funcionan con la app abierta o en segundo plano; con la app cerrada solo llegan si activas el envío push (necesita configurar Supabase).</li>
+            <li>Las notificaciones locales funcionan con la app abierta o en segundo plano; con la app cerrada no llegan.</li>
             <li>Tus preferencias (tema, pestaña) se guardan en este navegador; los datos, en tu cuenta.</li>
           </ul>
         </section>
