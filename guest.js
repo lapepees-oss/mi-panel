@@ -15,10 +15,12 @@ const guestSession = () => ({ user: { id: GUEST_ID, email: "Invitado", guest: tr
 
 const GUEST_DEFAULTS = {
   tasks: { prio: 4, status: "todo", done: false, tags: [], notes: "", recurrence: null, list_id: null, due_date: null, completed_at: null },
-  habits: { emoji: "🌱", hint: "" },
+  habits: { emoji: "🌱", hint: "", category: "Personal", frequency: "Diario", color: "#8064ff" },
   savings_goals: { current: 0 },
-  timer: { running: false, started_at: null, accumulated_ms: 0, mode: "stopwatch", routine_id: null, label: "" },
+  timer: { running: false, started_at: null, accumulated_ms: 0, mode: "stopwatch", routine_id: null, label: "", target_ms: 0 },
+  timer_sessions: { label: "", kind: null },
   routines: { cycles: 1 },
+  intelligence_items: { status: "pending", category: "otros", problem: "", action: "", priority: 4, suggested_date: null, related_goal: "" },
 };
 const GUEST_CASCADE = {
   task_lists: [["tasks", "list_id", "null"]],
@@ -35,9 +37,9 @@ function guestSeed() {
   const row = (extra) => ({ id: guestUuid(), user_id: GUEST_ID, created_at: now, ...extra });
   const list = row({ name: "Universidad" });
   const habits = [
-    row({ name: "Leer 20 minutos", emoji: "📖", hint: "Antes de dormir" }),
-    row({ name: "Entrenar", emoji: "🏃", hint: "" }),
-    row({ name: "Meditar 5 minutos", emoji: "🧘", hint: "" }),
+    row({ name: "Leer 20 minutos", emoji: "📖", hint: "Antes de dormir", category: "Aprendizaje", color: "#4f80ff" }),
+    row({ name: "Entrenar", emoji: "🏃", hint: "", category: "Salud", color: "#35c99a" }),
+    row({ name: "Meditar 5 minutos", emoji: "🧘", hint: "", category: "Bienestar", frequency: "Entre semana", color: "#21b7ce" }),
   ];
   const logs = [];
   habits.forEach((hb, i) => {
@@ -62,6 +64,7 @@ function guestSeed() {
     ],
     budgets: [row({ category: "", amount: 400 }), row({ category: "Ocio", amount: 50 })],
     savings_goals: [row({ name: "Portátil nuevo", target: 900, current: 320 })],
+    ideas: [],
     timer: [], timer_sessions: [], routines: [], routine_steps: [],
   };
 }
@@ -89,6 +92,12 @@ function createGuestDb() {
       delete() { op = "delete"; return b; },
       upsert(p, o) { op = "upsert"; payload = p; conflict = o && o.onConflict; ignoreDup = !!(o && o.ignoreDuplicates); return b; },
       eq(k, v) { filters.push((r) => r[k] === v); return b; },
+      neq(k, v) { filters.push((r) => r[k] !== v); return b; },
+      gte(k, v) { filters.push((r) => r[k] >= v); return b; },
+      lte(k, v) { filters.push((r) => r[k] <= v); return b; },
+      gt(k, v) { filters.push((r) => r[k] > v); return b; },
+      lt(k, v) { filters.push((r) => r[k] < v); return b; },
+      in(k, vs) { filters.push((r) => vs.includes(r[k])); return b; },
       match(o) { for (const k in o) filters.push((r) => r[k] === o[k]); return b; },
       order(k, o) { ord = [k, !(o && o.ascending === false)]; return b; },
       range(a, z) { rng = [a, z]; return b; },

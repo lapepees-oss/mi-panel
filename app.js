@@ -4,7 +4,7 @@
 
 const PAGE_NAMES = {
   dashboard: "Resumen", habits: "Hábitos", tasks: "Tareas", journal: "Diario",
-  finance: "Finanzas", timer: "Cronómetro", prefs: "Preferencias",
+  finance: "Finanzas", timer: "Cronómetro", intelligence: "Intelligence", prefs: "Preferencias",
 };
 let currentPage = "dashboard";
 let channel = null;
@@ -16,9 +16,10 @@ const pageTitle = () => `${PAGE_NAMES[currentPage]} · Cloudspace`;
 // Solo hay rutas con el formato #/pagina. Los demás hashes (tokens de Supabase) se ignoran.
 function routeFromHash() {
   const m = /^#\/([a-z]+)/.exec(location.hash);
-  if (m && PAGE_NAMES[m[1]]) return m[1];
+  const allowed = (n) => PAGE_NAMES[n] && (n !== "intelligence" || intelActive()); // Intelligence caducada: no hay ruta
+  if (m && allowed(m[1])) return m[1];
   const saved = store.get("page", "dashboard");
-  return PAGE_NAMES[saved] ? saved : "dashboard";
+  return allowed(saved) ? saved : "dashboard";
 }
 
 function route() {
@@ -26,6 +27,7 @@ function route() {
   const next = routeFromHash();
   if (next !== currentPage && typeof flushJournal === "function") flushJournal();
   currentPage = next;
+  if (/^#\/intelligence/.test(location.hash) && next !== "intelligence") history.replaceState(null, "", "#/" + next); // sección caducada: no se queda la ruta
   for (const name of Object.keys(PAGE_NAMES)) show($(`#page-${name}`), name === currentPage);
   $$("[data-page]").forEach((a) => {
     if (a.dataset.page === currentPage) a.setAttribute("aria-current", "page");

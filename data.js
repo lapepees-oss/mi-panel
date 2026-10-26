@@ -21,6 +21,24 @@ async function loadTimer() {
   return row;
 }
 
+// Cuántos días de sesiones del cronómetro se cargan (estadísticas, historial)
+const SESSION_DAYS = 90;
+
+// Guarda una sesión. Si todavía no existe la columna "kind" (falta migracion-v4.sql), se guarda sin tipo.
+async function saveSession({ label, duration_ms, kind }) {
+  let { error } = await db.from("timer_sessions").insert({ label, duration_ms, kind });
+  if (error && (error.code === "42703" || error.code === "PGRST204" || /kind/i.test(error.message || ""))) {
+    ({ error } = await db.from("timer_sessions").insert({ label, duration_ms }));
+  }
+  if (error) {
+    console.error(error);
+    setSync(false);
+    toast(Logic.dataErrorText(error), 6000);
+    throw error;
+  }
+  setSync(true);
+}
+
 let loading = false;
 let loadAgain = false;
 let reloadTimeout = null;
@@ -44,12 +62,14 @@ async function loadAll() {
       fetchAll(() => db.from("transactions").select("*").order("tx_date", { ascending: false }).order("id")),
       fetchAll(() => db.from("budgets").select("*").order("category")),
       fetchAll(() => db.from("savings_goals").select("*").order("created_at").order("id")),
-      run(db.from("timer_sessions").select("*").order("created_at", { ascending: false }).limit(10)),
+      fetchAll(() => db.from("timer_sessions").select("*").gte("created_at", new Date(Date.now() - SESSION_DAYS * 86400000).toISOString()).order("created_at", { ascending: false }).order("id")),
       fetchAll(() => db.from("routines").select("*").order("created_at").order("id")),
       fetchAll(() => db.from("routine_steps").select("*").order("id")),
     ]);
     Object.assign(state, { tasks, lists, steps, habits, logs, journal, transactions, budgets, goals, sessions, routines, routineSteps });
     state.timer = await loadTimer();
+    await loadIdeas();
+    await loadIntel();
     showBanner("");
     renderAll();
   } catch (e) {
@@ -75,15 +95,34 @@ function scheduleReload() {
 
 const habitDays = () => Logic.logsByHabit(state.logs);
 
-async function createHabit({ name, emoji, hint }) {
-  const row = { name, emoji: emoji || "🌱", hint: hint || "" };
-  const ok = await mutate(null, () => run(db.from("habits").insert(row)));
-  return ok;
+// Los campos categoría/frecuencia/color existen tras ejecutar migracion-v4.sql; si faltan, se avisa en vez de perder datos.
+const missingColumn = (e) => e && (e.code === "42703" || e.code === "PGRST204" || /column/i.test(e.message || ""));
+async function habitWrite(query) {
+  const { error } = await query;
+  if (error) {
+    console.error(error);
+    setSync(false);
+    toast(missingColumn(error) ? "Falta actualizar la base de datos: ejecuta migracion-v4.sql en Supabase." : Logic.dataErrorText(error), 7000);
+    throw error;
+  }
+  setSync(true);
+}
+
+function createHabit({ name, emoji, hint, category, frequency, color }) {
+  const row = { name, emoji: emoji || "🌱", hint: hint || "", category: category || "Personal", frequency: frequency || "Diario", color: color || Logic.HABIT_COLORS[0] };
+  return mutate(null, () => habitWrite(db.from("habits").insert(row)));
 }
 
 function updateHabit(id, patch) {
   const hb = state.habits.find((x) => x.id === id);
-  return mutate(() => hb && Object.assign(hb, patch), () => run(db.from("habits").update(patch).eq("id", id)));
+  return mutate(() => hb && Object.assign(hb, patch), () => habitWrite(db.from("habits").update(patch).eq("id", id)));
+}
+
+// Copia independiente (nuevo id, sin historial)
+function duplicateHabit(hb) {
+  let name = `${hb.name} (copia)`.slice(0, 80);
+  for (let n = 2; state.habits.some((x) => x.name.toLowerCase() === name.toLowerCase()); n++) name = `${hb.name} (copia ${n})`.slice(0, 80);
+  return createHabit({ name, emoji: hb.emoji, hint: hb.hint, category: Logic.habitCategory(hb), frequency: Logic.habitFrequency(hb), color: Logic.habitColor(hb) });
 }
 
 function deleteHabit(id) {
@@ -110,6 +149,111 @@ function setHabitDay(habitId, day, on) {
       on
         ? run(db.from("habit_logs").upsert({ habit_id: habitId, day, user_id: user.id }, { onConflict: "habit_id,day", ignoreDuplicates: true }))
         : run(db.from("habit_logs").delete().eq("habit_id", habitId).eq("day", day))
+  );
+}
+
+/* ---------- Intelligence (tablas de migracion-v5.sql) ---------- */
+
+// Activa = interruptor encendido y fecha de expiración (si existe) aún no alcanzada. La fecha la fija el propietario a mano.
+function intelActive(now = Date.now()) {
+  const i = state.intel;
+  return !!i.enabled && (!i.expires_at || now < Date.parse(i.expires_at));
+}
+
+async function loadIntel() {
+  try {
+    const rows = await fetchAll(() => db.from("intelligence_settings").select("*"));
+    const r = rows[0];
+    state.intel = r
+      ? { enabled: r.intelligence_enabled !== false, expires_at: r.intelligence_expires_at || null, mode: r.intelligence_mode === "rules" ? "rules" : "hybrid", stored: true, ready: true }
+      : { enabled: true, expires_at: null, mode: "hybrid", stored: false, ready: true };
+    state.intelItems = await fetchAll(() => db.from("intelligence_items").select("*").order("created_at", { ascending: false }).order("id"));
+  } catch (e) {
+    if (!missingTable(e)) throw e;
+    state.intel = { enabled: true, expires_at: null, mode: "hybrid", stored: false, ready: false };
+    state.intelItems = [];
+  }
+}
+
+async function intelWrite(query) {
+  const { error } = await query;
+  if (error) {
+    console.error(error);
+    setSync(false);
+    const blocked = /row-level security|violates/i.test(error.message || "");
+    toast(missingTable(error) ? "Falta actualizar la base de datos: ejecuta migracion-v5.sql en Supabase." : blocked ? "Intelligence está desactivada o ha expirado: el servidor no permite guardar." : Logic.dataErrorText(error), 7000);
+    throw error;
+  }
+  setSync(true);
+}
+
+function saveIntelSettings({ enabled, expires_at, mode }) {
+  const row = { intelligence_enabled: !!enabled, intelligence_expires_at: expires_at || null, intelligence_mode: mode === "rules" ? "rules" : "hybrid", updated_at: new Date().toISOString() };
+  return mutate(
+    () => { state.intel = { enabled: !!enabled, expires_at: row.intelligence_expires_at, mode: row.intelligence_mode, stored: true, ready: true }; },
+    () => intelWrite(db.from("intelligence_settings").upsert({ ...row, user_id: user.id }, { onConflict: "user_id" }))
+  );
+}
+
+function addIntelItems(items) {
+  const rows = items.map((i) => ({ title: i.title.slice(0, 120), category: i.category || "otros", problem: (i.problem || "").slice(0, 500), action: (i.action || "").slice(0, 500), priority: i.priority >= 1 && i.priority <= 4 ? i.priority : 4, suggested_date: i.suggested_date || null, related_goal: (i.goal || "").slice(0, 200) }));
+  return mutate(null, () => intelWrite(db.from("intelligence_items").insert(rows)));
+}
+function updateIntelItem(id, patch) {
+  const it = state.intelItems.find((x) => x.id === id);
+  return mutate(() => it && Object.assign(it, patch), () => intelWrite(db.from("intelligence_items").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id)));
+}
+function deleteIntelItem(id) {
+  return mutate(() => { state.intelItems = state.intelItems.filter((x) => x.id !== id); }, () => intelWrite(db.from("intelligence_items").delete().eq("id", id)));
+}
+
+/* ---------- Ideas (tabla ideas; se crea con migracion-v4.sql) ---------- */
+
+const missingTable = (e) => e && (e.code === "42P01" || e.code === "PGRST205" || /relation .*ideas|schema cache/i.test(e.message || ""));
+
+async function loadIdeas() {
+  try {
+    state.ideas = await fetchAll(() => db.from("ideas").select("*").order("created_at", { ascending: false }).order("id"));
+    state.ideasReady = true;
+  } catch (e) {
+    state.ideas = [];
+    state.ideasReady = !missingTable(e);
+    if (state.ideasReady) throw e;
+  }
+}
+
+async function ideaWrite(query) {
+  const { error } = await query;
+  if (error) {
+    console.error(error);
+    setSync(false);
+    toast(missingTable(error) ? "Falta la tabla de ideas: ejecuta migracion-v4.sql en Supabase." : Logic.dataErrorText(error), 7000);
+    throw error;
+  }
+  setSync(true);
+}
+
+const cleanTags = (tags) => [...new Set((tags || []).map((t) => String(t).trim().replace(/^#/, "").toLowerCase()).filter(Boolean))].slice(0, 12);
+
+function createIdea({ title, body, tags, entry_date }) {
+  return mutate(null, () => ideaWrite(db.from("ideas").insert({ title: title.trim(), body: (body || "").trim(), tags: cleanTags(tags), entry_date: entry_date || null })));
+}
+function updateIdea(id, patch) {
+  const clean = { ...patch, updated_at: new Date().toISOString() };
+  if (clean.tags) clean.tags = cleanTags(clean.tags);
+  const idea = state.ideas.find((x) => x.id === id);
+  return mutate(() => idea && Object.assign(idea, clean), () => ideaWrite(db.from("ideas").update(clean).eq("id", id)));
+}
+function deleteIdea(id) {
+  return mutate(() => { state.ideas = state.ideas.filter((x) => x.id !== id); }, () => ideaWrite(db.from("ideas").delete().eq("id", id)));
+}
+
+// Borra las notas (rápida y entrada) de un día
+async function deleteJournalDay(date) {
+  const rows = state.journal.filter((j) => j.entry_date === date);
+  return mutate(
+    () => { state.journal = state.journal.filter((j) => j.entry_date !== date); },
+    async () => { for (const r of rows) await run(db.from("journal_entries").delete().eq("id", r.id)); }
   );
 }
 

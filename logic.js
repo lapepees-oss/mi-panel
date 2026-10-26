@@ -431,6 +431,193 @@
     return (hh ? hh + ":" + pad(mm) : String(mm)) + ":" + pad(ss);
   }
 
+
+  /* ================= Sesiones del cronómetro ================= */
+
+  const SESSION_KINDS = { stopwatch: "Cronómetro libre", timer: "Temporizador", pomodoro: "Pomodoro", routine: "Rutina" };
+  // Las sesiones antiguas no tienen tipo: se muestran como "Sesión" sin inventar nada
+  const sessionKindLabel = (kind) => SESSION_KINDS[kind] || "Sesión";
+
+  // 1h 25min · 50min · 45s
+  function formatDuration(ms) {
+    const total = Math.max(0, Math.round(ms / 1000));
+    const hh = Math.floor(total / 3600), mm = Math.floor((total % 3600) / 60), ss = total % 60;
+    if (hh) return mm ? `${hh}h ${mm}min` : `${hh}h`;
+    if (mm) return `${mm}min`;
+    return `${ss}s`;
+  }
+
+  // Estadísticas a partir de sesiones reales. Las sesiones llevan created_at (ISO); el día es el local.
+  function sessionStats(sessions, today) {
+    const yesterday = addDays(today, -1);
+    const last7 = lastDayKeys(7, today);
+    const perDay = Object.fromEntries(last7.map((k) => [k, 0]));
+    let todayMs = 0, yesterdayMs = 0, todayCount = 0, yesterdayCount = 0;
+    for (const s of sessions) {
+      const day = dayOfTimestamp(s.created_at);
+      if (!day) continue;
+      const ms = Number(s.duration_ms) || 0;
+      if (day === today) { todayMs += ms; todayCount++; }
+      else if (day === yesterday) { yesterdayMs += ms; yesterdayCount++; }
+      if (day in perDay) perDay[day] += ms;
+    }
+    return {
+      todayMs, yesterdayMs, todayCount, yesterdayCount,
+      days7: last7.map((k) => ({ key: k, ms: perDay[k] })),
+      activeDays7: last7.filter((k) => perDay[k] > 0).length,
+    };
+  }
+
+  // Variación porcentual respecto a una base; null si no hay base con la que comparar
+  const pctChange = (now, before) => (before > 0 ? Math.round(((now - before) / before) * 100) : null);
+
+  // Duración de una cuenta atrás en ms a partir de horas/minutos/segundos (máx. 24 h)
+  function countdownMs(hh, mm, ss) {
+    const n = (v) => Math.max(0, Math.floor(Number(v) || 0));
+    return Math.min(24 * 3600, n(hh) * 3600 + n(mm) * 60 + n(ss)) * 1000;
+  }
+  const splitHms = (ms) => {
+    const t = Math.max(0, Math.round(ms / 1000));
+    return { h: Math.floor(t / 3600), m: Math.floor((t % 3600) / 60), s: t % 60 };
+  };
+
+  /* ================= Hábitos: categorías, frecuencia y progreso semanal ================= */
+
+  const HABIT_CATEGORIES = ["Salud", "Aprendizaje", "Bienestar", "Productividad", "Personal"];
+  const HABIT_FREQUENCIES = ["Diario", "Entre semana", "Semanal", "Personalizada"];
+  const HABIT_COLORS = ["#8064ff", "#4f80ff", "#21b7ce", "#35c99a", "#ffad54", "#ff607e"];
+  const HABIT_COLOR_NAMES = { "#8064ff": "Morado", "#4f80ff": "Azul", "#21b7ce": "Cian", "#35c99a": "Verde", "#ffad54": "Naranja", "#ff607e": "Rosa" };
+  const HABIT_ICONS = { Salud: "🏋️", Aprendizaje: "📖", Bienestar: "🍃", Productividad: "✅", Personal: "✦" };
+  const habitCategory = (h) => (HABIT_CATEGORIES.includes(h.category) ? h.category : "Personal");
+  const habitFrequency = (h) => (HABIT_FREQUENCIES.includes(h.frequency) ? h.frequency : "Diario");
+  const habitColor = (h) => (/^#[0-9a-f]{6}$/i.test(h.color || "") ? h.color : HABIT_COLORS[0]);
+
+  // ¿Toca este hábito ese día? (Entre semana: no toca sábado ni domingo)
+  const habitDueOn = (freq, key) => (freq === "Entre semana" ? weekdayIndex(key) <= 4 : true);
+  // Marcas necesarias para cumplir una semana completa
+  const habitWeekTarget = (freq) => (freq === "Entre semana" ? 5 : freq === "Semanal" ? 1 : 7);
+
+  // done = cumplido hoy (o, en Semanal, ya cumplido esta semana); off = hoy no toca; pending = falta
+  function habitStatusToday(freq, days, today) {
+    if (days.has(today)) return "done";
+    if (freq === "Semanal" && weekKeys(weekStart(today)).some((k) => days.has(k))) return "done";
+    if (!habitDueOn(freq, today)) return "off";
+    return "pending";
+  }
+
+  // Racha actual: cuenta hacia atrás sin romperse por días que no tocan; hoy sin marcar no la rompe
+  function habitStreak(freq, days, today) {
+    if (freq === "Semanal") {
+      let wk = weekStart(today);
+      if (!weekKeys(wk).some((k) => days.has(k))) wk = addDays(wk, -7);
+      let n = 0;
+      while (weekKeys(wk).some((k) => days.has(k))) { n++; wk = addDays(wk, -7); }
+      return n;
+    }
+    let cursor = days.has(today) ? today : addDays(today, -1);
+    let n = 0;
+    for (let guard = 0; guard < 4000; guard++) {
+      if (days.has(cursor)) n++;
+      else if (!habitDueOn(freq, cursor)) { /* día que no toca: no rompe */ }
+      else break;
+      cursor = addDays(cursor, -1);
+    }
+    return n;
+  }
+
+  function habitBestStreak(freq, days) {
+    const sorted = [...days].filter(isDayKey).sort();
+    if (!sorted.length) return 0;
+    if (freq === "Semanal") {
+      const weeks = [...new Set(sorted.map(weekStart))].sort();
+      let best = 0, run = 0, prev = null;
+      for (const w of weeks) { run = prev && dayDiff(w, prev) === 7 ? run + 1 : 1; best = Math.max(best, run); prev = w; }
+      return best;
+    }
+    let best = 0, run = 0;
+    for (let k = sorted[0]; k <= sorted[sorted.length - 1]; k = addDays(k, 1)) {
+      if (days.has(k)) { run++; best = Math.max(best, run); }
+      else if (!habitDueOn(freq, k)) { /* no rompe */ }
+      else run = 0;
+    }
+    return best;
+  }
+
+  // Progreso de una semana (lunes a domingo) de UN hábito: marcas hechas / marcas necesarias
+  function habitWeekProgress(freq, days, weekStartKey) {
+    const target = habitWeekTarget(freq);
+    const done = weekKeys(weekStartKey).filter((k) => days.has(k)).length;
+    return { done: Math.min(done, target), target };
+  }
+
+  // Resumen de la semana de TODOS los hábitos con una única definición: cada hábito tiene "huecos" (los días que
+  // le tocan desde que existe; en Semanal, uno por semana). Hechos / no hechos (ya pasados) / pendientes (hoy o futuros).
+  function weekSummary(habits, byHabit, today) {
+    const ws = weekStart(today);
+    const keys = weekKeys(ws);
+    let done = 0, missed = 0, pending = 0;
+    for (const h of habits) {
+      const freq = habitFrequency(h);
+      const days = byHabit.get(h.id) || new Set();
+      const created = dayOfTimestamp(h.created_at);
+      const live = keys.filter((k) => !created || k >= created || days.has(k));
+      if (freq === "Semanal") {
+        if (!live.length) continue;
+        if (live.some((k) => days.has(k))) done++;
+        else if (today > keys[6]) missed++;
+        else pending++;
+        continue;
+      }
+      for (const k of live) {
+        const did = days.has(k);
+        if (!habitDueOn(freq, k) && !did) continue;
+        if (k > today && !did) continue; // los días que aún no han llegado no cuentan
+        if (did) done++;
+        else if (k < today) missed++;
+        else pending++;
+      }
+    }
+    const total = done + missed + pending;
+    return { done, missed, pending, total, pct: total ? Math.round((done / total) * 100) : 0 };
+  }
+
+  // Filas del mapa de constancia: una por hábito. done / miss / na (aún no existía o no tocaba ese día)
+  function habitHeatRows(habits, byHabit, today, n = 35) {
+    const keys = lastDayKeys(n, today);
+    return habits.map((h) => {
+      const freq = habitFrequency(h);
+      const days = byHabit.get(h.id) || new Set();
+      const created = dayOfTimestamp(h.created_at);
+      return {
+        habit: h,
+        cells: keys.map((key) => ({
+          key,
+          state: days.has(key) ? "done" : (created && key < created) || !habitDueOn(freq, key) ? "na" : "miss",
+        })),
+      };
+    });
+  }
+
+  /* ================= Calendario mensual (diario) ================= */
+
+  // Semanas (lunes primero) de un mes: cada celda es una clave de día o null
+  function monthGrid(mk) {
+    const { first, days } = monthBounds(mk);
+    const lead = weekdayIndex(first);
+    const cells = [...Array(lead).fill(null), ...Array.from({ length: days }, (_, i) => `${mk}-${pad(i + 1)}`)];
+    while (cells.length % 7) cells.push(null);
+    return Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
+  }
+
+  const greeting = (hour) => (hour < 6 ? "Buenas noches" : hour < 13 ? "Buenos días" : hour < 21 ? "Buenas tardes" : "Buenas noches");
+
+  // Cuántas tareas abiertas lleva cada etiqueta
+  function tagCounts(tasks) {
+    const c = {};
+    for (const t of tasks) if (isOpen(t)) for (const g of t.tags || []) c[g] = (c[g] || 0) + 1;
+    return c;
+  }
+
   /* ================= Copia JSON ================= */
 
   const stripUser = (row) => {
@@ -691,6 +878,10 @@
     logsByHabit, currentStreak, longestStreak, completionRate, heatLevel, heatCells, activeDays,
     PRIO_LABELS, prioOf, isOpen, isOverdue, inView, sortTasks, filterTasks, viewCounts, dueInfo, groupByDue,
     addInterval, nextOccurrence, normalizeTags, wordCount,
+    SESSION_KINDS, sessionKindLabel, formatDuration, sessionStats, pctChange, countdownMs, splitHms,
+    HABIT_CATEGORIES, HABIT_FREQUENCIES, HABIT_COLORS, HABIT_COLOR_NAMES, HABIT_ICONS, habitCategory, habitFrequency, habitColor,
+    habitDueOn, habitWeekTarget, habitStatusToday, habitStreak, habitBestStreak, habitWeekProgress, weekSummary, habitHeatRows,
+    monthGrid, greeting, tagCounts,
     timerPhase, clock, csvText, buildTransactionsCsv, buildBackup, legacyFromStorage, parseCloudspaceBackup, planImport,
     EMAIL_RE, MIN_PASSWORD, validateAuth, authErrorText, dataErrorText,
   };

@@ -58,6 +58,9 @@ function renderFinance() {
   bal.textContent = Logic.formatEUR(totals.balance);
   bal.classList.toggle("neg", totals.balance < 0);
   bal.classList.toggle("pos", totals.balance > 0);
+  $("#finBudgetRing").style.setProperty("--pct", bs.total ? Math.min(100, bs.total.pct) : 0);
+  $("#finBudgetRing").classList.toggle("over", !!(bs.total && bs.total.over));
+  $("#finBudgetPct").textContent = bs.total ? bs.total.pct + "%" : "—";
   const left = $("#finBudgetLeft");
   left.textContent = bs.total ? Logic.formatEUR(bs.total.left) : "—";
   left.classList.toggle("neg", !!(bs.total && bs.total.over));
@@ -87,13 +90,15 @@ function renderFinance() {
   $("#categoryCaption").textContent = cats.length ? `${plural(cats.length, "categoría", "categorías")} con gastos` : "";
 
   // Últimos 6 meses
-  const series = Logic.monthSeries(state.transactions, mk, 6);
+  const range = Number($("#finRange").value) || 6;
+  const series = Logic.monthSeries(state.transactions, mk, range);
   const top = Math.max(1, ...series.flatMap((s) => [s.income, s.expense]));
-  $("#trendChart").setAttribute("aria-label", "Ingresos y gastos de los últimos seis meses: " + series.map((s) => `${Logic.monthLabel(s.month)}, ingresos ${Logic.formatEUR(s.income)}, gastos ${Logic.formatEUR(s.expense)}`).join("; "));
+  $("#trendChart").setAttribute("aria-label", `Ingresos y gastos de los últimos ${range} meses: ` + series.map((s) => `${Logic.monthLabel(s.month)}, ingresos ${Logic.formatEUR(s.income)}, gastos ${Logic.formatEUR(s.expense)}`).join("; "));
+  $("#trendChart").style.gridTemplateColumns = `repeat(${series.length}, minmax(0, 1fr))`;
   $("#trendChart").replaceChildren(
     ...series.map((s) => {
       const [y, m] = s.month.split("-").map(Number);
-      const short = new Date(y, m - 1, 1, 12).toLocaleDateString("es-ES", { month: "short" });
+      const short = new Date(y, m - 1, 1, 12).toLocaleDateString("es-ES", { month: "short" }).replace(".", "");
       return h("div", { class: "trend-col" + (s.month === mk ? " current" : "") },
         h("div", { class: "trend-bars" },
           h("span", { title: `Ingresos: ${Logic.formatEUR(s.income)}`, style: `height:${s.income ? Math.max(3, (s.income / top) * 100) : 0}%` }),
@@ -104,17 +109,51 @@ function renderFinance() {
 
   renderTransactions(mk);
   renderGoals();
+  renderInsights(mk, totals, bs);
+}
+
+// Conclusiones calculadas solo con movimientos reales; sin datos suficientes no se dice nada.
+function renderInsights(mk, totals, bs) {
+  const items = [];
+  const eur = Logic.formatEUR;
+  const cats = Object.entries(totals.byCategory).sort((a, b) => b[1] - a[1]);
+  if (cats.length && totals.expense > 0) items.push(`Tu mayor gasto es «${cats[0][0]}»: ${eur(cats[0][1])} (${Math.round((cats[0][1] / totals.expense) * 100)}% de los gastos).`);
+  const prev = Logic.monthTotals(state.transactions, Logic.addMonths(mk, -1));
+  if (prev.expense > 0 && totals.expense > 0) {
+    const diff = totals.expense - prev.expense;
+    items.push(diff === 0 ? "Has gastado lo mismo que el mes anterior." : `Has gastado ${eur(Math.abs(diff))} ${diff > 0 ? "más" : "menos"} que el mes anterior.`);
+  }
+  if (totals.income > 0 && totals.expense > 0) {
+    const rate = Math.round(((totals.income - totals.expense) / totals.income) * 100);
+    items.push(rate >= 0 ? `Has ahorrado el ${rate}% de tus ingresos este mes.` : `Este mes has gastado más de lo que ha entrado (${eur(-(totals.income - totals.expense))} de diferencia).`);
+  }
+  if (bs.total) items.push(bs.total.over ? `Has superado el presupuesto mensual en ${eur(-bs.total.left)}.` : `Llevas el ${bs.total.pct}% del presupuesto mensual; quedan ${eur(bs.total.left)}.`);
+  $("#finInsights").replaceChildren(...(items.length ? items : ["Registra ingresos y gastos de este mes para ver conclusiones."]).map((t) => h("li", { text: t })));
+
+  // Gastos que se repiten: mismo concepto e importe en al menos dos meses distintos
+  const groups = new Map();
+  for (const t of state.transactions) {
+    if (t.type !== "expense") continue;
+    const key = t.title.trim().toLowerCase() + "|" + Logic.centsFromDb(t.amount);
+    if (!groups.has(key)) groups.set(key, { title: t.title, cents: Logic.centsFromDb(t.amount), months: new Set() });
+    groups.get(key).months.add(Logic.monthKey(t.tx_date));
+  }
+  const rep = [...groups.values()].filter((g) => g.months.size >= 2).sort((a, b) => b.cents - a.cents).slice(0, 5);
+  $("#finRepeat").replaceChildren(...(rep.length ? rep.map((g) => h("li", {}, h("span", { text: g.title }), h("b", { text: eur(g.cents) }), h("small", { text: `${g.months.size} meses` }))) : [h("li", { class: "muted", text: "Todavía no hay gastos repetidos en tus movimientos." })]));
 }
 
 function renderTransactions(mk) {
   const typeF = $("#txFilterType").value;
   const q = $("#txSearch").value.trim().toLowerCase();
-  const inMonth = state.transactions.filter((t) => Logic.monthKey(t.tx_date) === mk);
+  const period = $("#txPeriod").value;
+  const since = period === "90" ? Logic.addDays(todayKey(), -90) : "";
+  const inMonth = state.transactions.filter((t) => (period === "month" ? Logic.monthKey(t.tx_date) === mk : period === "90" ? t.tx_date >= since : true));
+  const periodText = period === "month" ? `en ${Logic.monthLabel(mk)}` : period === "90" ? "en los últimos 90 días" : "en todo el historial";
   const list = inMonth
     .filter((t) => typeF === "all" || t.type === typeF)
     .filter((t) => !q || t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q))
     .sort((a, b) => (a.tx_date < b.tx_date ? 1 : a.tx_date > b.tx_date ? -1 : (b.created_at || "").localeCompare(a.created_at || "")));
-  $("#txSummary").textContent = `${plural(list.length, "movimiento", "movimientos")} en ${Logic.monthLabel(mk)} · ${state.transactions.length} en total`;
+  $("#txSummary").textContent = `${plural(list.length, "movimiento", "movimientos")} ${periodText} · ${state.transactions.length} en total`;
   $("#txList").replaceChildren(
     ...list.map((t) => {
       const cents = Logic.centsFromDb(t.amount);
@@ -129,7 +168,7 @@ function renderTransactions(mk) {
   );
   const empty = $("#txEmpty");
   empty.textContent = !inMonth.length
-    ? `No hay movimientos en ${Logic.monthLabel(mk)}. Añade el primero arriba.`
+    ? `No hay movimientos ${periodText}. Añade el primero con «− Gasto» o «+ Ingreso».`
     : "Ningún movimiento coincide con el filtro.";
   show(empty, list.length === 0);
 }
@@ -204,7 +243,7 @@ function openTxWizard(type, existing = null) {
 $("#addExpense").addEventListener("click", () => openTxWizard("expense"));
 $("#addIncome").addEventListener("click", () => openTxWizard("income"));
 
-["txFilterType", "txSearch"].forEach((id) => $("#" + id).addEventListener("input", renderFinance));
+["txFilterType", "txSearch", "txPeriod", "finRange"].forEach((id) => $("#" + id).addEventListener("input", renderFinance));
 $("#finPrev").addEventListener("click", () => {
   finMonth = Logic.addMonths(shownMonth(), -1);
   renderFinance();

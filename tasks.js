@@ -7,6 +7,7 @@ const PRIORITIES = [["1", "P1 · Urgente"], ["2", "P2 · Alta"], ["3", "P3 · Me
 const STATUSES = [["todo", "Por hacer"], ["doing", "En curso"], ["done", "Hecha"]];
 const REPEATS = [["", "No se repite"], ["daily", "Cada día"], ["weekly", "Cada semana"], ["monthly", "Cada mes"]];
 const BASE_VIEWS = [["inbox", "Bandeja de entrada"], ["today", "Hoy"], ["upcoming", "Próximas"], ["pending", "Pendientes"], ["done", "Completadas"]];
+const PRIO_TEXT = { 1: "Urgente", 2: "Alta", 3: "Media" };
 const EMPTY_TEXT = {
   inbox: "La bandeja está vacía. Aquí caen las tareas sin proyecto.",
   today: "Nada para hoy ni vencido. Buen momento para respirar.",
@@ -225,6 +226,14 @@ $$("#task-mode button").forEach((b) =>
   })
 );
 
+$("#task-empty-action").addEventListener("click", (e) => {
+  if (e.currentTarget.dataset.mode === "clear") {
+    taskUI.q = ""; taskUI.label = ""; taskUI.prio = "";
+    $("#task-search").value = "";
+    renderTasks();
+  } else $("#task-title").focus();
+});
+
 /* ---------- Pintado ---------- */
 
 function setView(view) {
@@ -233,9 +242,20 @@ function setView(view) {
   renderTasks();
 }
 
+function renderTaskStats() {
+  const counts = Logic.viewCounts(state.tasks, todayKey());
+  $("#tkPending").textContent = String(counts.pending);
+  $("#tkToday").textContent = String(counts.today);
+  $("#tkDone").textContent = String(counts.done);
+  const q = quoteOfDay(todayKey(), 3);
+  $("#tkQuote").textContent = "“" + q.text + "”";
+  $("#tkQuoteBy").textContent = q.by ? "— " + q.by : "";
+}
+
 function renderChips() {
   const bar = $("#task-chips");
   const counts = Logic.viewCounts(state.tasks, todayKey());
+  const tags = Logic.tagCounts(state.tasks);
   const chip = (view, label, n) =>
     h("button", {
       type: "button", role: "tab", class: "chip" + (taskUI.view === view ? " active" : ""),
@@ -244,6 +264,11 @@ function renderChips() {
   bar.replaceChildren(
     ...BASE_VIEWS.map(([v, l]) => chip(v, l, counts[v])),
     ...state.lists.map((l) => chip("list:" + l.id, "# " + l.name, counts.lists[l.id] || 0)),
+    ...Object.keys(tags).sort((a, b) => a.localeCompare(b, "es")).map((g) =>
+      h("button", {
+        type: "button", class: "chip tagchip" + (taskUI.label === g ? " active" : ""), "aria-pressed": String(taskUI.label === g), title: "Filtrar por la etiqueta #" + g,
+        onclick: () => { taskUI.label = taskUI.label === g ? "" : g; renderTasks(); },
+      }, "#" + g, h("span", { class: "n", text: String(tags[g]) }))),
     h("button", { type: "button", class: "chip add", onclick: addProject, text: "+ Proyecto" })
   );
 }
@@ -267,7 +292,7 @@ function taskMeta(t, { compact = false } = {}) {
   if (di) bits.push(h("span", { class: "badge " + (open ? di.cls : ""), title: di.title || "", text: "📅 " + (open ? di.text : Logic.shortDate(t.due_date)) }));
   if (t.status === "doing") bits.push(h("span", { class: "badge doing", text: "En curso" }));
   const p = Logic.prioOf(t);
-  if (p < 4) bits.push(h("span", { class: "badge p" + p, text: "P" + p }));
+  if (p < 4) bits.push(h("span", { class: "badge p" + p, title: "Prioridad " + PRIO_TEXT[p].toLowerCase(), text: "● " + PRIO_TEXT[p] }));
   const st = stepsOfTask(t.id);
   if (st.length) bits.push(h("span", { class: "badge", title: "Pasos", text: `☑ ${st.filter((s) => s.done).length}/${st.length}` }));
   if (t.recurrence) bits.push(h("span", { class: "badge", title: "Se repite", text: "🔁" }));
@@ -285,6 +310,12 @@ function taskItem(t, opts = {}) {
     onchange: (e) => setStatus(t.id, e.target.checked ? "done" : "todo"),
   });
   const body = h("div", { class: "body" }, h("div", { class: "title", text: t.title }), taskMeta(t, opts));
+  const menu = h("button", {
+    type: "button", class: "task-menu-btn", title: "Acciones", "aria-label": `Acciones de «${t.title}»`, "aria-haspopup": "menu",
+    onclick: (e) => { e.stopPropagation(); openTaskMenu(t, e.currentTarget); },
+    onkeydown: (e) => e.stopPropagation(),
+  });
+  menu.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-dots"/></svg>';
   return h("li", {
     class: (Logic.isOpen(t) ? "" : "done ") + "p" + Logic.prioOf(t), tabindex: "0", "aria-label": `Abrir «${t.title}»`,
     onclick: () => openTask(t.id),
@@ -294,8 +325,42 @@ function taskItem(t, opts = {}) {
         openTask(t.id);
       }
     },
-  }, cb, body);
+  }, cb, body, menu);
 }
+
+// Menú de acciones de una tarea (Editar abre el detalle; Duplicar y Eliminar actúan sobre la tarea real)
+let taskMenuEl = null;
+function closeTaskMenu() {
+  if (taskMenuEl) taskMenuEl.remove();
+  taskMenuEl = null;
+}
+// Menú flotante genérico: items = [{label, fn, danger}]
+function openMenu(anchor, items, label = "Acciones") {
+  closeTaskMenu();
+  const menu = h("div", { class: "task-menu", role: "menu", "aria-label": label },
+    ...items.map((it) => h("button", { type: "button", role: "menuitem", class: it.danger ? "danger" : "", text: it.label, onclick: () => { closeTaskMenu(); it.fn(); } })));
+  document.body.append(menu);
+  const r = anchor.getBoundingClientRect();
+  const w = menu.offsetWidth, hgt = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + "px";
+  menu.style.top = (r.bottom + hgt + 12 > innerHeight ? Math.max(8, r.top - hgt - 4) : r.bottom + 4) + "px";
+  taskMenuEl = menu;
+  menu.querySelector("button").focus();
+}
+function openTaskMenu(t, anchor) {
+  openMenu(anchor, [
+    { label: "Editar", fn: () => openTask(t.id) },
+    { label: "Duplicar", fn: async () => {
+      if (await createTask({ title: `${t.title} (copia)`.slice(0, 200), due_date: t.due_date, prio: t.prio, list_id: t.list_id, tags: t.tags || [], notes: t.notes || "" })) toast("Tarea duplicada.");
+    } },
+    { label: "Eliminar", danger: true, fn: async () => {
+      if (await askConfirm({ title: `¿Borrar «${t.title}»?`, text: "No se puede deshacer.", confirmLabel: "Borrar", danger: true })) deleteTask(t.id);
+    } },
+  ], "Acciones de la tarea");
+}
+document.addEventListener("click", (e) => { if (taskMenuEl && !e.target.closest(".task-menu")) closeTaskMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTaskMenu(); });
+window.addEventListener("hashchange", closeTaskMenu);
 
 function boardCard(t) {
   const idx = STATUSES.findIndex((s) => s[0] === t.status);
@@ -352,6 +417,7 @@ function renderList(items) {
 function renderTasks() {
   const today = todayKey();
   if (isListView() && !state.lists.some((l) => "list:" + l.id === taskUI.view)) taskUI.view = "pending";
+  renderTaskStats();
   renderChips();
   renderTaskControls();
 
@@ -369,6 +435,8 @@ function renderTasks() {
   show($("#task-clear-done"), taskUI.view === "done" && items.length > 0);
 
   const board = taskUI.mode === "board";
+  $("#task-list").classList.toggle("grid", taskUI.mode === "grid");
+  $("#task-done-list").classList.toggle("grid", taskUI.mode === "grid");
   show($("#task-list-wrap"), !board);
   show($("#task-board"), board);
   let shown = items.length;
@@ -376,9 +444,10 @@ function renderTasks() {
   else shown = renderList(items);
 
   const filtering = !!(taskUI.q.trim() || taskUI.label || taskUI.prio);
-  const empty = $("#task-empty");
-  empty.textContent = filtering ? EMPTY_TEXT.filtered : EMPTY_TEXT[isListView() ? "list" : taskUI.view] || "";
-  show(empty, shown === 0);
+  $("#task-empty-text").textContent = filtering ? EMPTY_TEXT.filtered : EMPTY_TEXT[isListView() ? "list" : taskUI.view] || "";
+  $("#task-empty-action").textContent = filtering ? "Limpiar filtros" : "Crear una tarea";
+  $("#task-empty-action").dataset.mode = filtering ? "clear" : "create";
+  show($("#task-empty"), shown === 0);
 
   if (openTaskId) {
     if (!getTask(openTaskId)) closeTask();

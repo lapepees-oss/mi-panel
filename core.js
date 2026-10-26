@@ -19,7 +19,8 @@ let user = null;
 const state = {
   tasks: [], lists: [], steps: [],
   habits: [], logs: [],
-  journal: [], transactions: [], budgets: [], goals: [],
+  journal: [], ideas: [], ideasReady: true,
+  intel: { enabled: true, expires_at: null, mode: "hybrid", stored: false, ready: true }, intelItems: [], transactions: [], budgets: [], goals: [],
   timer: null, sessions: [], routines: [], routineSteps: [],
 };
 

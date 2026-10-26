@@ -76,8 +76,33 @@ function askConfirm({ title, text = "", confirmLabel = "Confirmar", cancelLabel 
   });
 }
 
+// Varias salidas posibles: options = [{ label, value, kind: "primary"|"danger"|"ghost" }]. Cancelar/Esc devuelve null.
+function askChoice({ title, text = "", options = [] } = {}) {
+  return new Promise((resolve) => {
+    const dlg = uiShell("ui-small");
+    let done = false;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      uiClose(dlg);
+      resolve(v);
+    };
+    const buttons = options.map((o) => h("button", { type: "button", class: "ui-btn " + (o.kind || "ghost"), text: o.label, onclick: () => finish(o.value) }));
+    dlg.append(
+      h("div", { role: "alertdialog", "aria-label": title },
+        h("h2", { class: "ui-title", text: title }),
+        text ? h("p", { class: "ui-text", text }) : null,
+        h("div", { class: "ui-actions ui-stack" }, ...buttons))
+    );
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); finish(null); });
+    dlg.addEventListener("click", (e) => e.target === dlg && finish(null));
+    openDialog(dlg);
+    (buttons.find((b) => b.classList.contains("primary")) || buttons[0])?.focus();
+  });
+}
+
 /* ---------- Asistente paso a paso ---------- */
-// steps: [{ key, label, type: text|textarea|amount|date|choice, required, placeholder, options, hint,
+// steps: [{ key, label, type: text|textarea|amount|date|choice|color, required, placeholder, options, hint,
 //           maxLength, validate(value, values) → texto de error, when(values) → bool, format(value) → texto del resumen,
 //           quick: [{label, value}] (atajos para fechas) }]
 // onSubmit(values) → Promise<boolean|string>  (false o texto = error; true = guardado)
@@ -96,7 +121,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     const v = values[s.key];
     if (s.format) return s.format(v);
     if (v == null || v === "") return "—";
-    if (s.type === "choice") { const o = optionsOf(s).find((x) => x.value === v); return o ? o.label : String(v); }
+    if (s.type === "choice" || s.type === "color") { const o = optionsOf(s).find((x) => x.value === v); return o ? o.label : String(v); }
     return String(v);
   };
 
@@ -138,6 +163,16 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
           onclick: () => { set(o.value); wrap.querySelectorAll(".wiz-chip").forEach((b) => { const m = b === btn(o); b.classList.toggle("on", m); b.setAttribute("aria-checked", String(m)); }); } }));
       }
       const btn = (o) => wrap.children[opts.indexOf(o)];
+      return wrap;
+    }
+    if (s.type === "color") {
+      const wrap = h("div", { class: "wiz-colors", role: "radiogroup", "aria-label": s.label });
+      for (const o of optionsOf(s)) {
+        const on = values[s.key] === o.value;
+        wrap.append(h("button", { type: "button", class: "wiz-color" + (on ? " on" : ""), role: "radio", "aria-checked": String(on), "aria-label": o.label, title: o.label,
+          "data-v": o.value, style: `--c:${o.value}`,
+          onclick: () => { set(o.value); wrap.querySelectorAll(".wiz-color").forEach((b) => { const m = b.dataset.v === o.value; b.classList.toggle("on", m); b.setAttribute("aria-checked", String(m)); }); } }));
+      }
       return wrap;
     }
     if (s.type === "textarea") {
@@ -187,7 +222,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     next.textContent = "Continuar";
     const canEarly = earlyAfter != null && idx >= earlyAfter && idx < list.length - 1 && list.slice(0, idx + 1).every((x) => !checkStep(x));
     show(early, canEarly);
-    const el = body.querySelector("input, textarea, .wiz-chip.on, .wiz-chip");
+    const el = body.querySelector("input, textarea, .wiz-chip.on, .wiz-color.on, .wiz-chip, .wiz-color");
     if (el) el.focus();
   }
 
@@ -196,7 +231,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     const list = active();
     if (idx < list.length) {
       const problem = checkStep(list[idx]);
-      if (problem) { err.textContent = problem; const el = body.querySelector("input, textarea, .wiz-chip"); if (el) el.focus(); return; }
+      if (problem) { err.textContent = problem; const el = body.querySelector("input, textarea, .wiz-chip, .wiz-color"); if (el) el.focus(); return; }
       dir = 1;
       idx += 1;
       render();

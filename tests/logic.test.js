@@ -499,3 +499,111 @@ test("clock formatea mm:ss y h:mm:ss", () => {
   assert.equal(L.clock(3723000), "1:02:03");
   assert.equal(L.clock(-5), "0:00");
 });
+
+/* ---------- Sesiones del cronómetro ---------- */
+
+test("formatDuration y tipos de sesión", () => {
+  assert.equal(L.formatDuration(5100000), "1h 25min");
+  assert.equal(L.formatDuration(3600000), "1h");
+  assert.equal(L.formatDuration(3000000), "50min");
+  assert.equal(L.formatDuration(45000), "45s");
+  assert.equal(L.sessionKindLabel("pomodoro"), "Pomodoro");
+  assert.equal(L.sessionKindLabel(null), "Sesión"); // sesiones antiguas sin tipo
+});
+
+test("sessionStats separa hoy y ayer por día LOCAL y cuenta días activos", () => {
+  const at = (day, h) => new Date(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8)), h).toISOString();
+  const today = "2026-10-26";
+  const sessions = [
+    { created_at: at("2026-10-26", 9), duration_ms: 1800000 },
+    { created_at: at("2026-10-26", 23), duration_ms: 600000 },
+    { created_at: at("2026-10-25", 12), duration_ms: 3600000 },
+    { created_at: at("2026-10-20", 12), duration_ms: 1000 },
+    { created_at: at("2026-10-01", 12), duration_ms: 99999 },
+  ];
+  const s = L.sessionStats(sessions, today);
+  assert.equal(s.todayMs, 2400000); assert.equal(s.todayCount, 2);
+  assert.equal(s.yesterdayMs, 3600000); assert.equal(s.yesterdayCount, 1);
+  assert.equal(s.activeDays7, 3);
+  assert.equal(s.days7.length, 7);
+  assert.equal(L.pctChange(2400000, 3600000), -33);
+  assert.equal(L.pctChange(5, 0), null);
+});
+
+test("countdownMs limita a 24 h y descarta valores no válidos", () => {
+  assert.equal(L.countdownMs(0, 25, 0), 1500000);
+  assert.equal(L.countdownMs("1", "2", "3"), 3723000);
+  assert.equal(L.countdownMs(99, 0, 0), 86400000);
+  assert.equal(L.countdownMs(-3, "x", null), 0);
+  assert.deepEqual(L.splitHms(3723000), { h: 1, m: 2, s: 3 });
+});
+
+/* ---------- Hábitos: frecuencia, rachas y semana ---------- */
+
+test("habitStreak: Diario, Entre semana (el fin de semana no rompe) y Semanal", () => {
+  const d = (...k) => new Set(k);
+  // Hoy lunes 26: no marcado todavía → cuenta desde el domingo
+  assert.equal(L.habitStreak("Diario", d("2026-10-25", "2026-10-24"), "2026-10-26"), 2);
+  assert.equal(L.habitStreak("Diario", d("2026-10-23"), "2026-10-26"), 0);
+  assert.equal(L.habitStreak("Entre semana", d("2026-10-22", "2026-10-23"), "2026-10-26"), 2);
+  assert.equal(L.habitStreak("Entre semana", d("2026-10-21", "2026-10-23"), "2026-10-26"), 1); // falta el jueves
+  assert.equal(L.habitStreak("Semanal", d("2026-10-14", "2026-10-21"), "2026-10-26"), 2); // semanas del 12 y del 19; esta aún sin marcar
+  assert.equal(L.habitStreak("Semanal", d("2026-10-26", "2026-10-14"), "2026-10-26"), 1); // esta semana sí, la anterior no
+});
+
+test("habitBestStreak coincide con la lógica de cada frecuencia", () => {
+  const d = (...k) => new Set(k);
+  assert.equal(L.habitBestStreak("Diario", d("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-05")), 3);
+  assert.equal(L.habitBestStreak("Entre semana", d("2026-10-22", "2026-10-23", "2026-10-26", "2026-10-27")), 4); // jue vie (finde) lun mar
+  assert.equal(L.habitBestStreak("Semanal", d("2026-10-01", "2026-10-08", "2026-10-22")), 2);
+  assert.equal(L.habitBestStreak("Diario", d()), 0);
+});
+
+test("habitStatusToday y progreso semanal por hábito", () => {
+  const d = (...k) => new Set(k);
+  assert.equal(L.habitStatusToday("Diario", d("2026-10-26"), "2026-10-26"), "done");
+  assert.equal(L.habitStatusToday("Diario", d(), "2026-10-26"), "pending");
+  assert.equal(L.habitStatusToday("Entre semana", d(), "2026-10-25"), "off"); // domingo
+  assert.equal(L.habitStatusToday("Semanal", d("2026-10-22"), "2026-10-23"), "done"); // ya cumplido esta semana
+  assert.deepEqual(L.habitWeekProgress("Diario", d("2026-10-26", "2026-10-27"), "2026-10-26"), { done: 2, target: 7 });
+  assert.deepEqual(L.habitWeekProgress("Semanal", d("2026-10-26", "2026-10-27"), "2026-10-26"), { done: 1, target: 1 });
+});
+
+test("weekSummary usa una sola definición: hechos, no hechos (pasados) y pendientes (solo hoy)", () => {
+  const created = new Date(2026, 8, 1).toISOString();
+  const habits = [{ id: "a", created_at: created }, { id: "b", created_at: created, frequency: "Entre semana" }];
+  const by = new Map([["a", new Set(["2026-10-26", "2026-10-27"])], ["b", new Set(["2026-10-26"])]]);
+  // Miércoles 28: a → 2 hechos, 1 no hecho (nada pasado sin marcar salvo el 28? lunes y martes hechos) …
+  const s = L.weekSummary(habits, by, "2026-10-28");
+  // a: lun✓ mar✓ mié(hoy) pendiente; los días futuros no cuentan
+  // b: lun✓ mar✗ mié(hoy) pendiente
+  assert.deepEqual([s.done, s.missed, s.pending, s.total, s.pct], [3, 1, 2, 6, 50]);
+  // Un hábito creado a mitad de semana no arrastra días anteriores
+  const late = [{ id: "c", created_at: new Date(2026, 9, 28, 10).toISOString() }];
+  const s2 = L.weekSummary(late, new Map(), "2026-10-28");
+  assert.deepEqual([s2.done, s2.missed, s2.pending], [0, 0, 1]);
+});
+
+test("habitHeatRows distingue hecho, no hecho y no aplica", () => {
+  const created = new Date(2026, 9, 24, 9).toISOString();
+  const rows = L.habitHeatRows([{ id: "a", created_at: created }], new Map([["a", new Set(["2026-10-26"])]]), "2026-10-26", 4);
+  assert.deepEqual(rows[0].cells.map((c) => c.state), ["na", "miss", "miss", "done"]); // 23 (antes de existir), 24, 25, 26
+});
+
+/* ---------- Calendario y utilidades ---------- */
+
+test("monthGrid empieza en lunes y completa semanas", () => {
+  const g = L.monthGrid("2026-10"); // 1 oct 2026 = jueves
+  assert.deepEqual(g[0].slice(0, 4), [null, null, null, "2026-10-01"]);
+  assert.equal(g.length, 5);
+  assert.ok(g.every((w) => w.length === 7));
+  assert.equal(g.flat().filter(Boolean).length, 31);
+});
+
+test("greeting y tagCounts", () => {
+  assert.equal(L.greeting(8), "Buenos días");
+  assert.equal(L.greeting(15), "Buenas tardes");
+  assert.equal(L.greeting(23), "Buenas noches");
+  const c = L.tagCounts([{ tags: ["a", "b"], status: "todo" }, { tags: ["a"], status: "done" }, { tags: ["a"], status: "todo" }]);
+  assert.deepEqual(c, { a: 2, b: 1 });
+});
