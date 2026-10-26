@@ -153,7 +153,7 @@ function renderTransactions(mk) {
   const periodText = period === "month" ? `en ${Logic.monthLabel(mk)}` : period === "90" ? "en los últimos 90 días" : "en todo el historial";
   const list = inMonth
     .filter((t) => typeF === "all" || t.type === typeF)
-    .filter((t) => !q || t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q))
+    .filter((t) => !q || t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q) || (t.note || "").toLowerCase().includes(q))
     .sort((a, b) => (a.tx_date < b.tx_date ? 1 : a.tx_date > b.tx_date ? -1 : (b.created_at || "").localeCompare(a.created_at || "")));
   $("#txSummary").textContent = `${plural(list.length, "movimiento", "movimientos")} ${periodText} · ${state.transactions.length} en total`;
   $("#txList").replaceChildren(
@@ -162,7 +162,7 @@ function renderTransactions(mk) {
       const inc = t.type === "income";
       return h("div", { class: "transaction-row" },
         h("div", { class: "transaction-icon " + t.type, "aria-hidden": "true", text: inc ? "↙" : "↗" }),
-        h("div", { class: "transaction-copy" }, h("strong", { text: t.title }), h("small", { text: `${t.category} · ${Logic.shortDate(t.tx_date)}` })),
+        h("div", { class: "transaction-copy" }, h("strong", { text: t.title }), h("small", { text: `${t.category} · ${Logic.shortDate(t.tx_date)}${t.note ? " · " + (t.note.length > 50 ? t.note.slice(0, 49) + "…" : t.note) : ""}`, title: t.note || "" })),
         h("strong", { class: "transaction-amount " + t.type, text: (inc ? "+" : "−") + Logic.formatEUR(cents) }),
         h("button", { type: "button", class: "icon-btn", title: "Editar", "aria-label": `Editar ${t.title}`, text: "✎", onclick: () => startEditTx(t) }),
         h("button", { type: "button", class: "icon-btn", title: "Borrar", "aria-label": `Borrar ${t.title}`, text: "✕", onclick: () => confirmDeleteTx(t) }));
@@ -290,7 +290,7 @@ async function confirmDeleteTx(t) {
   if (await askConfirm({ title: `¿Borrar «${t.title}»?`, text: `${Logic.formatEUR(cents)} · ${Logic.shortDate(t.tx_date)}. No se puede deshacer.`, confirmLabel: "Borrar", danger: true })) deleteTransaction(t.id);
 }
 
-// Asistente de movimiento. Los ingresos no piden concepto: se guardan con el nombre de su categoría.
+// Asistente de movimiento: tipo, importe, concepto (obligatorio), categoría, nota opcional y fecha.
 function openTxWizard(type, existing = null) {
   const editing = !!existing;
   const today = todayKey();
@@ -299,15 +299,17 @@ function openTxWizard(type, existing = null) {
     { key: "type", label: "¿Es un gasto o un ingreso?", type: "choice", summaryLabel: "Tipo", options: [{ value: "expense", label: "Gasto" }, { value: "income", label: "Ingreso" }] },
     { key: "amount", label: "¿Cuánto es?", type: "amount", placeholder: "12,50", required: true, requiredMessage: "Escribe el importe.", maxLength: 14, summaryLabel: "Importe (€)",
       validate: (v) => { const r = Logic.parseCents(v); return r.ok ? "" : r.error; }, format: (v) => { const r = Logic.parseCents(v); return r.ok ? Logic.formatEUR(r.cents) : v; } },
-    { key: "title", label: "¿Cuál es el concepto?", type: "text", placeholder: "Compra, transporte…", required: true, requiredMessage: "Escribe un concepto.", maxLength: 120, summaryLabel: "Concepto", when: (v) => v.type === "expense" },
+    // Concepto obligatorio en gastos e ingresos: identifica el movimiento ("Compra semanal en Mercadona", "Nómina mensual")
+    { key: "title", label: "¿Cuál es el concepto?", type: "text", placeholder: "Ej. Compra semanal en Mercadona", required: true, requiredMessage: "Escribe un concepto.", maxLength: 120, summaryLabel: "Concepto" },
     { key: "category", label: "¿En qué categoría?", type: "choice", summaryLabel: "Categoría", options: (v) => catOptions(v.type) },
+    { key: "note", label: "Nota (opcional)", type: "textarea", placeholder: "Detalles extra si los necesitas", maxLength: 300, summaryLabel: "Nota" },
     { key: "date", label: "¿Qué día fue?", type: "date", required: true, requiredMessage: "Elige una fecha.", summaryLabel: "Fecha",
       quick: [{ label: "Hoy", value: today }, { label: "Ayer", value: Logic.addDays(today, -1) }],
       validate: (v) => (Logic.isDayKey(v) ? "" : "Elige una fecha válida."), format: (v) => (Logic.isDayKey(v) ? Logic.longDate(v) : v) },
   ];
   const initial = existing
-    ? { type: existing.type, amount: Logic.centsToPlain(Logic.centsFromDb(existing.amount)), title: existing.type === "expense" ? existing.title : "", category: existing.category, date: existing.tx_date }
-    : { type, amount: "", title: "", category: "", date: today };
+    ? { type: existing.type, amount: Logic.centsToPlain(Logic.centsFromDb(existing.amount)), title: existing.title, note: existing.note || "", category: existing.category, date: existing.tx_date }
+    : { type, amount: "", title: "", note: "", category: "", date: today };
   openWizard({
     steps, initial, submitLabel: editing ? "Guardar cambios" : "Guardar movimiento", doneMessage: editing ? "Movimiento actualizado." : "Movimiento guardado.",
     onSubmit: async (v) => {
@@ -315,8 +317,9 @@ function openTxWizard(type, existing = null) {
       if (!amt.ok) return amt.error;
       const valid = catOptions(v.type).map((o) => o.value);
       const cat = valid.includes(v.category) ? v.category : valid[valid.length - 1];
-      const title = v.type === "income" ? (existing && existing.type === "income" ? existing.title : cat) : v.title.trim();
-      const row = { type: v.type, cents: amt.cents, title, category: cat, tx_date: v.date };
+      const title = v.title.trim().replace(/\s+/g, " ");
+      if (!title) return "Escribe un concepto."; // no se acepta vacío ni solo espacios
+      const row = { type: v.type, cents: amt.cents, title, category: cat, tx_date: v.date, note: (v.note || "").trim() };
       const ok = editing ? await updateTransaction(existing.id, row) : await addTransaction(row);
       if (ok && Logic.monthKey(v.date) !== shownMonth()) { finMonth = Logic.monthKey(v.date) === currentMonth() ? null : Logic.monthKey(v.date); renderFinance(); }
       return !!ok;

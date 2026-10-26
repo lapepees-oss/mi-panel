@@ -368,14 +368,14 @@ async function saveJournal(kind, date, body) {
 
 /* ---------- Finanzas ---------- */
 
-function addTransaction({ type, cents, title, category, tx_date }) {
+function addTransaction({ type, cents, title, category, tx_date, note }) {
   return mutate(null, () =>
-    run(db.from("transactions").insert({ type, amount: Logic.centsToDb(cents), title, category, tx_date }))
+    run(db.from("transactions").insert({ type, amount: Logic.centsToDb(cents), title, category, tx_date, note: note || null }))
   );
 }
 
-function updateTransaction(id, { type, cents, title, category, tx_date }) {
-  const patch = { type, amount: Logic.centsToDb(cents), title, category, tx_date };
+function updateTransaction(id, { type, cents, title, category, tx_date, note }) {
+  const patch = { type, amount: Logic.centsToDb(cents), title, category, tx_date, note: note || null };
   const t = state.transactions.find((x) => x.id === id);
   return mutate(() => t && Object.assign(t, patch), () => run(db.from("transactions").update(patch).eq("id", id)));
 }

@@ -370,16 +370,8 @@ function renderTimer() {
   show($("#opt-pomodoro"), mode === "pomodoro");
   show($("#opt-routine"), mode === "routine");
 
-  // Tarea opcional (la etiqueta de la sesión)
-  const open = Logic.sortTasks(state.tasks.filter(Logic.isOpen), "smart", "pending").slice(0, 150);
+  // Etiqueta de la sesión (texto libre opcional)
   const label = t.label || "";
-  const sel = $("#timer-task");
-  sel.replaceChildren(
-    h("option", { value: "", text: open.length ? "Selecciona una tarea…" : "No tienes tareas pendientes" }),
-    ...open.map((x) => h("option", { value: x.id, text: x.title.length > 60 ? x.title.slice(0, 57) + "…" : x.title }))
-  );
-  const match = open.find((x) => x.title === label);
-  sel.value = match ? match.id : "";
   if (document.activeElement !== $("#timer-label")) $("#timer-label").value = label;
 
   // Temporizador
@@ -641,12 +633,7 @@ $("#timer-finish").addEventListener("click", async () => {
   }
 });
 
-// Etiqueta de la sesión: tarea elegida o texto libre
-$("#timer-task").addEventListener("change", (e) => {
-  const task = state.tasks.find((x) => x.id === e.target.value);
-  $("#timer-label").value = task ? task.title : "";
-  updateTimer({ label: task ? task.title : "" });
-});
+// Etiqueta de la sesión: texto libre
 $("#timer-label").addEventListener("change", () => updateTimer({ label: timerLabel() }));
 
 // Cuenta atrás: h / min / s y ajuste de 1 minuto

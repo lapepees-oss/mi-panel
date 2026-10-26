@@ -55,3 +55,7 @@ Cubre fechas locales, dinero en céntimos, rachas, vistas de tareas, CSV, import
 - **Frecuencia de hábitos**: se guarda en la columna `habits.frequency` que ya existía (`Diario`, `Entre semana`, `Fines de semana`, `Semanal` o `Personalizada:0,2,4`, con 0 = lunes … 6 = domingo). Los hábitos antiguos siguen funcionando sin migración. Todo (lista de hoy, contadores, rachas, semana, mapa de constancia, estadísticas, Intelligence) pasa por `Logic.habitDueOn`. Un día no programado se muestra como «no programado», nunca como fallo, y cambiar la frecuencia no toca el historial. La app no tiene recordatorios de hábitos.
 - **Frase del día**: `phrases.js` (reflexiones originales, sin firma) + `Logic.phraseOfDay` (determinista por fecha local, sin repeticiones en 7 días). Ajustes en Resumen → Personalizar (se guardan en este navegador).
 - **Transiciones**: `swapPage`, `moveNavIndicator` y `armReveal` en `app.js`; estilos al final de `styles.css`. Respetan `prefers-reduced-motion`.
+
+## Movimientos con concepto y nota (migración v8)
+
+Todos los movimientos (gastos e ingresos) piden un **concepto** obligatorio (no vacío, máx. 120 caracteres) y admiten una **nota** opcional (máx. 300). La nota requiere `migracion-v8.sql` (añade la columna `transactions.note`; no toca datos existentes). Los movimientos antiguos conservan su título como concepto. El campo «Tarea (opcional)» del cronómetro se eliminó; la etiqueta libre de la sesión sigue disponible.
