@@ -246,7 +246,6 @@ function renderHabits() {
   const count = (c) => (c === "Todos" ? state.habits.length : state.habits.filter((x) => Logic.habitCategory(x) === c).length);
   $("#habitCats").replaceChildren(
     ...cats.map((c) => h("button", { type: "button", class: "hb-cat" + (habitCat === c ? " active" : ""), "aria-pressed": String(habitCat === c), onclick: () => { habitCat = c; renderHabits(); } }, c, h("span", { text: String(count(c)) }))),
-    h("span", { class: "hb-spacer" }),
     h("button", { type: "button", class: "primary-btn hb-new", onclick: () => openHabitForm() }, "+ Nuevo hábito")
   );
 

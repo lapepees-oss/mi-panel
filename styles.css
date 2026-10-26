@@ -567,3 +567,7 @@ textarea.wiz-input { font-size: 16px; line-height: 1.5; }
 .wiz-color.on { border-color: var(--text); box-shadow: inset 0 0 0 3px var(--surface); }
 .wiz-color:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .wiz-color { transition: none; } }
+
+/* Botón de vista «Tablero»: con texto para que se encuentre fácil */
+#task-mode .seg-label { margin-left: 6px; font-size: 13px; }
+#task-mode button:has(.seg-label) { display: inline-flex; align-items: center; }
