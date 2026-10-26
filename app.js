@@ -61,7 +61,7 @@ async function onSession(session) {
   }
   if (newUser && user && newUser.id === user.id) return; // mismo usuario: nada que hacer
 
-  if (newUser && cfg.ALLOWED_EMAIL && newUser.email.toLowerCase() !== String(cfg.ALLOWED_EMAIL).toLowerCase()) {
+  if (newUser && !newUser.guest && cfg.ALLOWED_EMAIL && newUser.email.toLowerCase() !== String(cfg.ALLOWED_EMAIL).toLowerCase()) {
     // Aviso de comodidad; la barrera real es el RLS de single-user.sql en la base de datos
     await denyAccess();
     return;
@@ -108,7 +108,13 @@ async function init() {
     );
     return;
   }
-  db = createDb();
+  realDb = createDb();
+  if (isGuest()) {
+    db = createGuestDb();
+    await onSession(guestSession());
+    return;
+  }
+  db = realDb;
   // Nunca se espera a Supabase dentro de este callback (puede bloquear la librería): se aplaza un ciclo
   db.auth.onAuthStateChange((event, session) => {
     setTimeout(() => {

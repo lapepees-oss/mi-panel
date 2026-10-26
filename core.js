@@ -12,6 +12,7 @@ const configured = !!cfg.SUPABASE_URL && !cfg.SUPABASE_URL.startsWith("PEGA_");
 const flags = { allowSignup: cfg.ALLOW_SIGNUP !== false, google: cfg.GOOGLE_LOGIN === true };
 
 let db = null;
+let realDb = null; // cliente real de Supabase (en modo invitado `db` es una base local; el feedback usa este)
 let user = null;
 
 // Única copia local de los datos de Supabase: todas las vistas leen de aquí
@@ -142,7 +143,7 @@ function setSync(ok) {
   if (!el) return;
   el.classList.toggle("ok", ok);
   el.classList.toggle("bad", !ok);
-  el.title = ok ? "Sincronizado con Supabase" : "Sin conexión o error al sincronizar";
+  el.title = ok ? (typeof isGuest === "function" && isGuest() ? "Modo invitado: datos solo en este navegador" : "Sincronizado con Supabase") : "Sin conexión o error al sincronizar";
 }
 
 function showBanner(msg) {

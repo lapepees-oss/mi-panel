@@ -478,3 +478,24 @@ test("authErrorText traduce los errores de Supabase", () => {
   assert.match(L.dataErrorText({ code: "42501", message: "new row violates row-level security policy" }), /permiso/);
   assert.match(L.dataErrorText({ code: "PGRST205", message: "Could not find the table" }), /migracion-v3/);
 });
+
+/* ---------- Fases del cronómetro ---------- */
+
+test("timerPhase recorre fases y ciclos y termina", () => {
+  const steps = [{ seconds: 1500, label: "Estudiando", kind: "work" }, { seconds: 300, label: "Descansando", kind: "break" }];
+  let p = L.timerPhase(steps, 2, 0);
+  assert.equal(p.idx, 0); assert.equal(p.remaining, 1500000);
+  p = L.timerPhase(steps, 2, 1500000);
+  assert.equal(p.idx, 1); assert.equal(p.remaining, 300000);
+  p = L.timerPhase(steps, 2, 1800000 + 10000);
+  assert.equal(p.cycle, 1); assert.equal(p.idx, 0);
+  assert.ok(L.timerPhase(steps, 2, 3600000).finished);
+  assert.ok(!L.timerPhase(steps, 0, 99999999).finished);
+});
+
+test("clock formatea mm:ss y h:mm:ss", () => {
+  assert.equal(L.clock(754000), "12:34");
+  assert.equal(L.clock(5000), "0:05");
+  assert.equal(L.clock(3723000), "1:02:03");
+  assert.equal(L.clock(-5), "0:00");
+});

@@ -113,10 +113,107 @@ if (legacy) {
 /* ---------- Cuenta ---------- */
 
 $("#prefsLogout").addEventListener("click", () => logout());
+$("#prefsFeedback").addEventListener("click", () => openFeedback());
 
 function renderPrefs() {
-  $("#prefsEmail").textContent = user ? `Sesión iniciada como ${user.email}` : "";
+  $("#prefsEmail").textContent = user ? (isGuest() ? "Modo invitado: tus datos están solo en este navegador." : `Sesión iniciada como ${user.email}`) : "";
   const n = state.transactions.length + state.tasks.length + state.habits.length;
   $("#exportInfo").textContent = `Ahora mismo: ${plural(state.tasks.length, "tarea", "tareas")}, ${plural(state.habits.length, "hábito", "hábitos")}, ${plural(state.transactions.length, "movimiento", "movimientos")}, ${plural(state.journal.length, "nota", "notas")}.` + (n ? "" : " Aún no hay datos.");
 }
 renderers.push(renderPrefs);
+
+/* ---------- Notificaciones ---------- */
+
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+$("#pushHour").replaceChildren(...HOURS.map((hh) => h("option", { value: String(hh), text: String(hh).padStart(2, "0") + ":00" })));
+let notifBusy = false;
+
+async function renderNotifPrefs() {
+  const prefs = notifPrefs();
+  const supported = notifSupported();
+  const granted = notifGranted();
+  const denied = supported && Notification.permission === "denied";
+  $("#notifStatus").textContent = !supported
+    ? "Este navegador no admite notificaciones."
+    : granted ? "Permiso concedido en este dispositivo."
+    : denied ? "Bloqueadas en este navegador: permítelas en los ajustes del sitio (el candado junto a la dirección)."
+    : "Todavía no has dado permiso.";
+  show($("#notifEnable"), supported && !granted && !denied);
+  $("#notifPhase").checked = prefs.phase;
+  $("#notifProgress").checked = prefs.progress;
+  [$("#notifPhase"), $("#notifProgress"), $("#notifTest")].forEach((el) => (el.disabled = !granted));
+
+  // Push
+  const configured = pushConfigured();
+  show($("#pushBox"), true);
+  const sub = configured && granted ? await currentPushSub().catch(() => null) : null;
+  const settings = configured && user ? notifSettings || (await loadNotifSettings()) : null;
+  $("#pushEnable").checked = !!sub;
+  $("#pushEnable").disabled = !configured || !granted || notifBusy;
+  $("#pushHint").textContent = !configured
+    ? "Pendiente de configurar: falta VAPID_PUBLIC_KEY en config.js y la función en Supabase (mira el README)."
+    : !granted ? "Primero permite las notificaciones."
+    : settings === null ? "Falta ejecutar migracion-v4.sql en Supabase."
+    : "Envío push desde tu Supabase.";
+  const ready = configured && granted && !!sub && !!settings;
+  $("#pushTimer").disabled = $("#pushDaily").disabled = $("#pushHour").disabled = !ready;
+  $("#pushTimer").checked = ready ? !!settings.timer_enabled : false;
+  $("#pushDaily").checked = ready ? !!settings.daily_enabled : false;
+  $("#pushHour").value = String(settings ? settings.daily_hour : 8);
+}
+
+$("#notifEnable").addEventListener("click", async () => {
+  const r = await requestNotifPermission();
+  toast(r === "granted" ? "Notificaciones permitidas." : "No se concedió el permiso.");
+  renderNotifPrefs();
+});
+$("#notifPhase").addEventListener("change", (e) => { store.set("notif", { ...notifPrefs(), phase: e.target.checked }); });
+$("#notifProgress").addEventListener("change", (e) => {
+  store.set("notif", { ...notifPrefs(), progress: e.target.checked });
+  if (!e.target.checked) timerProgress(null);
+});
+$("#notifTest").addEventListener("click", async () => {
+  const ok = await showSystem("Cloudspace", "Así se verán tus avisos.", { tag: "cloudspace-test" });
+  toast(ok ? "Notificación enviada." : "No se pudo mostrar la notificación.");
+});
+$("#pushEnable").addEventListener("change", async (e) => {
+  notifBusy = true;
+  try {
+    if (e.target.checked) { await enablePush(); await saveNotifSettings({}); toast("Avisos con la app cerrada activados."); }
+    else { await disablePush(); toast("Avisos con la app cerrada desactivados."); }
+  } catch (err) {
+    toast(err && err.message ? err.message : "No se pudo cambiar el envío push.");
+  }
+  notifBusy = false;
+  renderNotifPrefs();
+});
+$("#pushTimer").addEventListener("change", (e) => saveNotifSettings({ timer_enabled: e.target.checked }).catch(() => toast("No se pudo guardar.")));
+$("#pushDaily").addEventListener("change", (e) => saveNotifSettings({ daily_enabled: e.target.checked }).catch(() => toast("No se pudo guardar.")));
+$("#pushHour").addEventListener("change", (e) => saveNotifSettings({ daily_hour: Number(e.target.value) }).catch(() => toast("No se pudo guardar.")));
+renderers.push(() => { if (!notifBusy) renderNotifPrefs(); });
+
+/* ---------- Feedback recibido (solo el dueño, no el invitado) ---------- */
+
+async function loadFeedback() {
+  if (!user || isGuest()) return show($("#feedbackPanel"), false);
+  let rows = null;
+  try {
+    const { data, error } = await realDb.from("feedback").select("*").order("created_at", { ascending: false }).limit(50);
+    if (!error) rows = data;
+  } catch (_) {}
+  const panel = $("#feedbackPanel");
+  if (rows === null) return show(panel, false); // tabla sin crear o sin permiso: no se muestra nada
+  show(panel, true);
+  $("#feedbackCaption").textContent = rows.length ? `Últimos ${plural(rows.length, "comentario", "comentarios")}.` : "Todavía no ha llegado ninguno.";
+  $("#feedbackList").replaceChildren(
+    ...rows.map((r) => h("div", { class: "feedback-item" },
+      h("div", { class: "feedback-head" },
+        h("b", { text: "★".repeat(r.rating || 0) + "☆".repeat(5 - (r.rating || 0)) }),
+        h("span", { class: "muted", text: new Date(r.created_at).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }) + (r.page ? " · " + r.page : "") + (r.guest ? " · invitado" : "") })),
+      h("p", { text: r.message }),
+      r.contact ? h("small", { class: "muted", text: "Contacto: " + r.contact }) : null))
+  );
+}
+$("#feedbackReload").addEventListener("click", loadFeedback);
+let feedbackLoadedFor = null;
+renderers.push(() => { if (user && currentPage === "prefs" && feedbackLoadedFor !== user.id) { feedbackLoadedFor = user.id; loadFeedback(); } });

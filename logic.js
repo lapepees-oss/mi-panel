@@ -407,6 +407,30 @@
     return "﻿" + body + "\r\n";
   }
 
+  /* ================= Fase del cronómetro (misma lógica en el navegador y en la función de avisos) ================= */
+
+  // steps: [{ seconds, label, kind }]; cycles: 0 = sin fin. ms = tiempo transcurrido desde el inicio de la rutina.
+  function timerPhase(steps, cycles, ms) {
+    const cycleMs = steps.reduce((a, s) => a + s.seconds * 1000, 0);
+    if (!steps.length || cycleMs <= 0) return { finished: true, total: 0 };
+    if (cycles > 0 && ms >= cycles * cycleMs) return { finished: true, total: cycles * cycleMs };
+    const cycle = Math.floor(ms / cycleMs);
+    let within = ms - cycle * cycleMs;
+    for (let i = 0; i < steps.length; i++) {
+      const dur = steps[i].seconds * 1000;
+      if (within < dur) return { finished: false, cycle, idx: i, step: steps[i], dur, remaining: dur - within };
+      within -= dur;
+    }
+    return { finished: true, total: cycles * cycleMs };
+  }
+
+  // Texto del tiempo para las notificaciones: 12:34 o 1:02:03
+  function clock(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const hh = Math.floor(total / 3600), mm = Math.floor((total % 3600) / 60), ss = total % 60;
+    return (hh ? hh + ":" + pad(mm) : String(mm)) + ":" + pad(ss);
+  }
+
   /* ================= Copia JSON ================= */
 
   const stripUser = (row) => {
@@ -667,7 +691,7 @@
     logsByHabit, currentStreak, longestStreak, completionRate, heatLevel, heatCells, activeDays,
     PRIO_LABELS, prioOf, isOpen, isOverdue, inView, sortTasks, filterTasks, viewCounts, dueInfo, groupByDue,
     addInterval, nextOccurrence, normalizeTags, wordCount,
-    csvText, buildTransactionsCsv, buildBackup, legacyFromStorage, parseCloudspaceBackup, planImport,
+    timerPhase, clock, csvText, buildTransactionsCsv, buildBackup, legacyFromStorage, parseCloudspaceBackup, planImport,
     EMAIL_RE, MIN_PASSWORD, validateAuth, authErrorText, dataErrorText,
   };
 });

@@ -122,8 +122,11 @@ function setAuthMode(mode, { keepStatus = false } = {}) {
   });
   show($("#auth-back"), mode === "forgot");
   const social = (mode === "login" || mode === "signup") && flags.google;
+  const guestOk = (mode === "login" || mode === "signup") && typeof guestEnabled === "function" && guestEnabled();
   show($("#google-button"), social);
-  show($("#auth-sep"), social);
+  show($("#guest-button"), guestOk);
+  show($("#guest-note"), guestOk);
+  show($("#auth-sep"), social || guestOk);
   clearFieldErrors();
   if (!keepStatus) setAuthStatus("");
   $("#password").type = "password";
@@ -255,6 +258,11 @@ $("#google-button").addEventListener("click", async () => {
 /* ---------- Sesión ---------- */
 
 async function logout() {
+  if (typeof isGuest === "function" && isGuest()) {
+    exitGuest();
+    location.reload();
+    return;
+  }
   try {
     await db.auth.signOut();
   } catch (_) {}

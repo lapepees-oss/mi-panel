@@ -111,12 +111,8 @@ function beep(kind) {
 }
 
 async function systemNotify(title, body) {
-  try {
-    if (!("Notification" in window) || Notification.permission !== "granted") return;
-    const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
-    if (reg && reg.showNotification) reg.showNotification(title, { body, icon: "icons/icon-192.png", tag: "mipanel-timer" });
-    else new Notification(title, { body, icon: "icons/icon-192.png" });
-  } catch (_) {}
+  if (!notifPrefs().phase) return;
+  showSystem(title, body, { tag: "cloudspace-timer-phase", renotify: true });
 }
 
 function alertPhase(p) {
@@ -254,12 +250,14 @@ function tickTimer() {
     card.classList.remove("work", "break");
     lastPhaseKey = null;
     document.title = t.running ? `${fmt(ms)} · Cloudspace` : pageTitle();
+    timerProgress(t.running ? { phaseKey: "free", title: "⏱ Cronómetro en marcha", body: `Llevas ${Logic.clock(ms)}${t.label ? " · " + t.label : ""}` } : null);
     return;
   }
 
   const p = phaseAt(ar, ms);
   if (p.finished) {
     disp.textContent = "00:00";
+    timerProgress(null);
     if (t.running) finishRoutine(ar, p);
     return;
   }
@@ -277,6 +275,11 @@ function tickTimer() {
   if (t.running && lastPhaseKey !== null && key !== lastPhaseKey) alertPhase(p);
   lastPhaseKey = t.running ? key : null;
   document.title = t.running ? `${fmtShort(p.remaining + 999)} ${p.step.label} · Cloudspace` : pageTitle();
+  timerProgress(t.running ? {
+    phaseKey: key,
+    title: `${p.step.kind === "break" ? "☕" : "📚"} ${p.step.label} · quedan ${Logic.clock(p.remaining + 999)}`,
+    body: `${cycleTxt} · lleva ${Logic.clock(ms)}${p.next ? " · Siguiente: " + p.next.label : ""}`,
+  } : null);
 }
 
 function startTick() {
@@ -342,10 +345,9 @@ $("#timer-mode").addEventListener("change", async (e) => {
 });
 
 $("#timer-notify").addEventListener("click", async () => {
-  try {
-    await Notification.requestPermission();
-  } catch (_) {}
+  await requestNotifPermission();
   renderTimer();
+  if (typeof renderNotifPrefs === "function") renderNotifPrefs();
 });
 
 /* ---------- Editor de rutinas ---------- */

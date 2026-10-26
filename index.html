@@ -113,6 +113,8 @@
 
         <div class="separator" id="auth-sep"><span>o continúa con</span></div>
         <button class="provider-button" id="google-button" type="button"><span class="google-g" aria-hidden="true">G</span> Continuar con Google</button>
+        <button class="provider-button hidden" id="guest-button" type="button" data-guest-action="enter">👀 Probar como invitado</button>
+        <p class="legal-copy hidden" id="guest-note">El modo invitado no necesita cuenta: tus datos de prueba se quedan solo en este navegador.</p>
         <p class="legal-copy">Tu sesión la gestiona Supabase. La contraseña nunca se guarda en este navegador.</p>
       </div>
       <footer class="form-footer"><span>© Cloudspace</span><span id="auth-env"></span></footer>
@@ -154,6 +156,13 @@
     <div class="side-resizer" id="sideResizer" role="separator" aria-orientation="vertical" aria-label="Cambiar el ancho de la barra lateral (flechas; doble clic para restablecer)" tabindex="0"></div>
 
     <main class="main" id="main">
+      <div id="guestBar" class="guest-bar hidden" role="status">
+        <span>👀 <b>Modo invitado</b>: los datos se guardan solo en este navegador.</span>
+        <span class="guest-actions">
+          <button type="button" class="ui-btn blue small" data-guest-action="feedback">Dar feedback</button>
+          <button type="button" class="ui-btn ghost small" data-guest-action="leave">Salir</button>
+        </span>
+      </div>
       <div class="topbar">
         <button type="button" class="icon-button side-toggle" id="sideToggle" title="Contraer barra lateral" aria-label="Contraer barra lateral" aria-expanded="true"><svg class="ico"><use href="#i-panel"/></svg></button>
         <div class="breadcrumb">Workspace <span> / </span> <b id="crumb">Resumen</b></div>
@@ -451,7 +460,7 @@
             <button id="timer-reset" class="secondary">Reiniciar</button>
           </div>
           <button id="timer-notify" class="secondary small hidden" style="margin-top:10px">🔔 Activar avisos del sistema</button>
-          <p class="muted" style="margin:10px 0 0">Los avisos del sistema solo funcionan con la app abierta; no hay notificaciones push.</p>
+          <p class="muted" style="margin:10px 0 0">Los avisos y el tiempo en la notificación se configuran en Preferencias.</p>
         </div>
 
         <h2>Últimas sesiones</h2>
@@ -467,6 +476,22 @@
           <div class="theme-choice" role="radiogroup" aria-label="Tema">
             <label class="theme-option"><input type="radio" name="theme" value="dark"><span class="swatch swatch-dark" aria-hidden="true"></span><span>Oscuro</span></label>
             <label class="theme-option"><input type="radio" name="theme" value="light"><span class="swatch swatch-light" aria-hidden="true"></span><span>Claro</span></label>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top:16px">
+          <div class="panel-head"><div><h3>Notificaciones</h3><p id="notifStatus"></p></div></div>
+          <div class="notif-list">
+            <button class="primary-btn hidden" id="notifEnable" type="button">Permitir notificaciones</button>
+            <label class="switch-row"><input type="checkbox" id="notifPhase"><span><b>Avisar al cambiar de fase</b><small>Cuando empieza un descanso o termina una rutina.</small></span></label>
+            <label class="switch-row"><input type="checkbox" id="notifProgress"><span><b>Mostrar el tiempo del cronómetro</b><small>Una notificación con lo que queda de la fase (o por cuánto vas) cuando sales de la app.</small></span></label>
+            <div id="pushBox" class="notif-push">
+              <label class="switch-row"><input type="checkbox" id="pushEnable"><span><b>Recibir avisos con la app cerrada</b><small id="pushHint">Envío push desde tu Supabase.</small></span></label>
+              <label class="switch-row"><input type="checkbox" id="pushTimer"><span><b>Fin de fase del cronómetro</b><small>Puede llegar con hasta un minuto de retraso.</small></span></label>
+              <label class="switch-row"><input type="checkbox" id="pushDaily"><span><b>Resumen diario</b><small>Tareas de hoy y hábitos pendientes.</small></span></label>
+              <label class="field-inline">Hora del resumen <select id="pushHour"></select></label>
+            </div>
+            <div class="row"><button class="secondary" id="notifTest" type="button">Enviar una notificación de prueba</button></div>
           </div>
         </section>
 
@@ -490,7 +515,12 @@
 
         <section class="panel" style="margin-top:16px">
           <div class="panel-head"><div><h3>Cuenta</h3><p id="prefsEmail"></p></div></div>
-          <button class="secondary" id="prefsLogout" type="button">Cerrar sesión</button>
+          <div class="row"><button class="secondary" id="prefsFeedback" type="button">Dar feedback</button><button class="secondary" id="prefsLogout" type="button">Cerrar sesión</button></div>
+        </section>
+
+        <section class="panel hidden" id="feedbackPanel" style="margin-top:16px">
+          <div class="panel-head"><div><h3>Feedback recibido</h3><p id="feedbackCaption"></p></div><button class="secondary small" id="feedbackReload" type="button">Actualizar</button></div>
+          <div id="feedbackList" class="feedback-list"></div>
         </section>
 
         <section class="panel" style="margin-top:16px">
@@ -498,7 +528,7 @@
           <ul class="honest">
             <li><b>Sincroniza</b> entre dispositivos a través de Supabase (necesita conexión; no hay cola sin conexión).</li>
             <li><b>No</b> se conecta a bancos: los movimientos se escriben a mano.</li>
-            <li><b>No</b> envía notificaciones push; el cronómetro avisa solo con la app abierta.</li>
+            <li>Las notificaciones locales funcionan con la app abierta o en segundo plano; con la app cerrada solo llegan si activas el envío push (necesita configurar Supabase).</li>
             <li>Tus preferencias (tema, pestaña) se guardan en este navegador; los datos, en tu cuenta.</li>
           </ul>
         </section>
@@ -534,7 +564,9 @@
   <script src="journal.js"></script>
   <script src="finance.js"></script>
   <script src="timer.js"></script>
+  <script src="notify.js"></script>
   <script src="prefs.js"></script>
+  <script src="guest.js"></script>
   <script src="sidebar.js"></script>
   <script src="app.js"></script>
 </body>

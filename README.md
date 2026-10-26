@@ -11,6 +11,11 @@ Espacio personal privado, instalable como PWA: **resumen con mapa de constancia 
 - **Finanzas:** ingresos/gastos en céntimos exactos, categorías, balance mensual, presupuestos (total y por categoría), metas de ahorro, gráficos y **exportación CSV** (`;` y coma decimal, apta para Excel).
 - **Preferencias:** tema, **exportar JSON**, importar copias de Cloudspace (con resumen previo y sin duplicar), cerrar sesión.
 
+## Modo invitado y feedback
+- En el login hay «Probar como invitado»: abre la app con datos de ejemplo guardados **solo en el navegador del invitado** (no se envía nada a tu Supabase y no puede ver tus datos). Se desactiva con `GUEST_MODE: false` en `config.js`.
+- Su botón «Dar feedback» envía el comentario a tu tabla `feedback`. Para que funcione ejecuta `feedback.sql` en Supabase (con tu correo) y súbelo a GitHub. Tú los lees en Preferencias > Feedback recibido (o en Table Editor).
+- Límites: no hay filtro antispam más allá de los límites de longitud y una espera de 30 s por navegador; si alguien abusa, puedes borrar filas o quitar la política «enviar feedback».
+
 ## Lo que NO hace
 - No hay cola de escritura sin conexión: sin red puedes abrir la app pero los cambios no se guardan.
 - No hay notificaciones push; el cronómetro avisa solo con la app abierta.
