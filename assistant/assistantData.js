@@ -22,7 +22,7 @@
     const tasks = [];
     for (const t of arr(raw.tasks)) {
       if (!t || t.id == null || !str(t.title)) { drop("tasks"); continue; }
-      const status = t.status === "done" || t.done === true ? "done" : t.status === "doing" ? "doing" : "todo";
+      const status = t.status === "done" || t.done === true ? "done" : (t.status === "doing" || t.status === "review") ? "doing" : "todo";
       tasks.push({
         id: String(t.id), title: str(t.title, 120), status, prio: L.prioOf(t),
         due_date: L.isDayKey(t.due_date) ? t.due_date : null,
@@ -38,8 +38,10 @@
       if (!h || h.id == null || !str(h.name)) { drop("habits"); continue; }
       habits.push({
         id: String(h.id), name: str(h.name, 80), frequency: L.habitFrequency(h),
-        createdDay: L.dayOfTimestamp(h.created_at) || today, days: byHabit.get(h.id) || byHabit.get(String(h.id)) || new Set(),
+        createdDay: null, days: byHabit.get(h.id) || byHabit.get(String(h.id)) || new Set(),
       });
+      const hb = habits[habits.length - 1];
+      hb.createdDay = L.habitStartDay(h, hb.days) || today; // creación o primer registro (lo que ocurra antes)
     }
 
     const sessions = [];

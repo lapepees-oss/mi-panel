@@ -238,15 +238,26 @@
     return Math.min(4, Math.max(1, Math.ceil((count / Math.max(total, count, 1)) * 4)));
   }
 
+  // Primer día en que un hábito "existe" para las estadísticas: su creación o, si hay registros anteriores
+  // (hábitos importados, de ejemplo o rellenados a posteriori), el primero de ellos. Sin esto, un hábito creado hoy
+  // con registros pasados no contaría en el total de esos días y una sola marca parecería "todos cumplidos".
+  function habitStartDay(h, days) {
+    const created = dayOfTimestamp(h.created_at);
+    const first = days && days.size ? [...days].filter(isDayKey).sort()[0] : null;
+    if (created && first) return first < created ? first : created;
+    return created || first || null;
+  }
+
   // Un cuadro por día; "total" = hábitos que ya existían ese día
   function heatCells(habits, byHabit, today, n = 35) {
+    const starts = new Map(habits.map((h) => [h.id, habitStartDay(h, byHabit.get(h.id))]));
     return lastDayKeys(n, today).map((key) => {
-      let count = 0;
-      for (const h of habits) if (byHabit.get(h.id)?.has(key)) count++;
-      const total = habits.filter((h) => {
-        const c = dayOfTimestamp(h.created_at);
-        return !c || c <= key;
-      }).length;
+      let count = 0, total = 0;
+      for (const h of habits) {
+        const start = starts.get(h.id);
+        if (byHabit.get(h.id)?.has(key)) count++;
+        if (!start || start <= key) total++;
+      }
       return { key, count, total, level: heatLevel(count, total) };
     });
   }
@@ -587,7 +598,7 @@
     return habits.map((h) => {
       const freq = habitFrequency(h);
       const days = byHabit.get(h.id) || new Set();
-      const created = dayOfTimestamp(h.created_at);
+      const created = habitStartDay(h, days);
       return {
         habit: h,
         cells: keys.map((key) => ({
@@ -596,6 +607,83 @@
         })),
       };
     });
+  }
+
+  /* ================= Suscripciones ================= */
+
+  const SUB_CYCLES = { weekly: "Semanal", monthly: "Mensual", quarterly: "Trimestral", yearly: "Anual" };
+  const SUB_STATUS = { active: "Activa", paused: "Pausada", cancelled: "Cancelada" };
+  const subCycle = (s) => (SUB_CYCLES[s && s.cycle] ? s.cycle : "monthly");
+  const subStatus = (s) => (SUB_STATUS[s && s.status] ? s.status : "active");
+
+  // Equivalente mensual / anual en céntimos (semanal = 52 pagos al año; trimestral = 4; anual = 1)
+  function subYearlyCents(s) {
+    const c = centsFromDb(s.amount);
+    return { weekly: c * 52, monthly: c * 12, quarterly: c * 4, yearly: c }[subCycle(s)];
+  }
+  const subMonthlyCents = (s) => Math.round(subYearlyCents(s) / 12);
+
+  // Suma `n` meses a una fecha conservando el día; si el mes no llega (31 → febrero), usa el último día
+  function addMonthsToDay(key, n) {
+    const d = Number(key.slice(8)), mk = addMonths(key.slice(0, 7), n);
+    return `${mk}-${pad(Math.min(d, monthBounds(mk).days))}`;
+  }
+  function addCycle(key, cycle, anchorDay) {
+    if (cycle === "weekly") return addDays(key, 7);
+    const months = cycle === "yearly" ? 12 : cycle === "quarterly" ? 3 : 1;
+    const day = anchorDay || Number(key.slice(8)); // el día original se conserva (31 → 28 → 31…)
+    const mk = addMonths(key.slice(0, 7), months);
+    return `${mk}-${pad(Math.min(day, monthBounds(mk).days))}`;
+  }
+
+  // Próximo cobro desde `today`: si la fecha guardada ya pasó, se avanza ciclo a ciclo. Sin fecha → null. Solo tiene sentido para activas.
+  function nextCharge(s, today) {
+    if (subStatus(s) !== "active" || !isDayKey(s.next_charge)) return null;
+    const cyc = subCycle(s), anchor = Number(s.next_charge.slice(8));
+    let k = s.next_charge;
+    for (let i = 0; k < today && i < 2000; i++) k = addCycle(k, cyc, anchor);
+    return k;
+  }
+
+  function subSummary(subs, today) {
+    const out = { active: 0, paused: 0, cancelled: 0, monthly: 0, yearly: 0, freedMonthly: 0, upcoming: [], byCategory: {} };
+    for (const s of subs) {
+      const st = subStatus(s);
+      out[st]++;
+      if (st === "active") {
+        out.monthly += subMonthlyCents(s);
+        out.yearly += subYearlyCents(s);
+        const cat = s.category || "Suscripciones";
+        out.byCategory[cat] = (out.byCategory[cat] || 0) + subMonthlyCents(s);
+        const next = nextCharge(s, today);
+        if (next) out.upcoming.push({ sub: s, date: next, days: dayDiff(next, today), cents: centsFromDb(s.amount) });
+      } else if (st === "cancelled") out.freedMonthly += subMonthlyCents(s);
+    }
+    out.upcoming.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    return out;
+  }
+
+  /* ================= Resumen personalizable ================= */
+
+  const DASH_WIDGETS = ["metrics", "timer", "tasks", "heat", "week", "activity", "finance", "quote", "note"];
+
+  // Normaliza el diseño guardado: ignora ids desconocidos o repetidos y añade al final los que falten (p. ej. bloques nuevos)
+  function dashLayout(saved, ids = DASH_WIDGETS) {
+    const order = [], seen = new Set();
+    const src = saved && Array.isArray(saved.order) ? saved.order : [];
+    for (const id of src) if (ids.includes(id) && !seen.has(id)) { seen.add(id); order.push(id); }
+    for (const id of ids) if (!seen.has(id)) order.push(id);
+    const hidden = (saved && Array.isArray(saved.hidden) ? saved.hidden : []).filter((id, i, a) => ids.includes(id) && a.indexOf(id) === i);
+    return { order, hidden };
+  }
+
+  // Mueve un bloque una posición (dir = -1 sube, +1 baja). Devuelve una lista nueva; en los extremos no cambia nada.
+  function moveWidget(order, id, dir) {
+    const i = order.indexOf(id), j = i + (dir < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= order.length) return order.slice();
+    const out = order.slice();
+    [out[i], out[j]] = [out[j], out[i]];
+    return out;
   }
 
   /* ================= Calendario mensual (diario) ================= */
@@ -879,7 +967,8 @@
     PRIO_LABELS, prioOf, isOpen, isOverdue, inView, sortTasks, filterTasks, viewCounts, dueInfo, groupByDue,
     addInterval, nextOccurrence, normalizeTags, wordCount,
     SESSION_KINDS, sessionKindLabel, formatDuration, sessionStats, pctChange, countdownMs, splitHms,
-    HABIT_CATEGORIES, HABIT_FREQUENCIES, HABIT_COLORS, HABIT_COLOR_NAMES, HABIT_ICONS, habitCategory, habitFrequency, habitColor,
+    SUB_CYCLES, SUB_STATUS, subCycle, subStatus, subYearlyCents, subMonthlyCents, addMonthsToDay, addCycle, nextCharge, subSummary,
+    DASH_WIDGETS, dashLayout, moveWidget, habitStartDay, HABIT_CATEGORIES, HABIT_FREQUENCIES, HABIT_COLORS, HABIT_COLOR_NAMES, HABIT_ICONS, habitCategory, habitFrequency, habitColor,
     habitDueOn, habitWeekTarget, habitStatusToday, habitStreak, habitBestStreak, habitWeekProgress, weekSummary, habitHeatRows,
     monthGrid, greeting, tagCounts,
     timerPhase, clock, csvText, buildTransactionsCsv, buildBackup, legacyFromStorage, parseCloudspaceBackup, planImport,

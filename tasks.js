@@ -2,9 +2,11 @@
 // Tareas estilo Todoist: Bandeja de entrada, Hoy, Próximas, Pendientes y Completadas; proyectos, etiquetas,
 // prioridades 1-4, fechas límite, búsqueda, filtros, orden, edición, pasos y repetición.
 // Una sola lista (state.tasks) alimenta esta página, el Resumen y las estadísticas.
+// Vistas: lista, cuadrícula y tablero por estados (Pendiente · En progreso · En revisión · Completado) con
+// arrastrar y soltar (ratón y pulsación larga en táctil) y menú «Mover a…» como alternativa sin arrastre.
 
 const PRIORITIES = [["1", "P1 · Urgente"], ["2", "P2 · Alta"], ["3", "P3 · Media"], ["4", "P4 · Normal"]];
-const STATUSES = [["todo", "Por hacer"], ["doing", "En curso"], ["done", "Hecha"]];
+const STATUSES = [["todo", "Pendiente"], ["doing", "En progreso"], ["review", "En revisión"], ["done", "Completado"]];
 const REPEATS = [["", "No se repite"], ["daily", "Cada día"], ["weekly", "Cada semana"], ["monthly", "Cada mes"]];
 const BASE_VIEWS = [["inbox", "Bandeja de entrada"], ["today", "Hoy"], ["upcoming", "Próximas"], ["pending", "Pendientes"], ["done", "Completadas"]];
 const PRIO_TEXT = { 1: "Urgente", 2: "Alta", 3: "Media" };
@@ -27,20 +29,21 @@ let notesTimer = null;
 const getTask = (id) => state.tasks.find((t) => t.id === id);
 const stepsOfTask = (id) => state.steps.filter((s) => s.task_id === id);
 const listName = (id) => (state.lists.find((l) => l.id === id) || {}).name || "";
-const saveUI = () => store.set("taskUI", { view: taskUI.view, mode: taskUI.mode, sort: taskUI.sort });
+const saveUI = () => store.set("taskUI", { view: taskUI.view, mode: taskUI.mode, sort: taskUI.sort, doneOpen: !!taskUI.doneOpen });
 const isListView = () => taskUI.view.startsWith("list:");
 const currentListId = () => (isListView() ? taskUI.view.slice(5) : "");
 
 /* ---------- Cambios (todos pasan por mutate: pintan ya, guardan y releen) ---------- */
 
-function createTask({ title, due_date = null, prio = 4, list_id = null, tags = [], notes = "" }) {
+function createTask({ title, due_date = null, prio = 4, list_id = null, tags = [], notes = "", status = "todo" }) {
   title = String(title || "").trim();
   if (!title) return Promise.resolve(false);
   if (title.length > 200) {
     toast("El título es demasiado largo (máximo 200 caracteres).");
     return Promise.resolve(false);
   }
-  const row = { title, prio, due_date, list_id, tags, status: "todo", done: false };
+  const done = status === "done";
+  const row = { title, prio, due_date, list_id, tags, status, done, ...(done ? { completed_at: new Date().toISOString() } : {}) };
   if (notes) row.notes = notes;
   return mutate(null, () => run(db.from("tasks").insert(row)));
 }
@@ -290,7 +293,8 @@ function taskMeta(t, { compact = false } = {}) {
   const open = Logic.isOpen(t);
   const di = Logic.dueInfo(t.due_date, today);
   if (di) bits.push(h("span", { class: "badge " + (open ? di.cls : ""), title: di.title || "", text: "📅 " + (open ? di.text : Logic.shortDate(t.due_date)) }));
-  if (t.status === "doing") bits.push(h("span", { class: "badge doing", text: "En curso" }));
+  if (t.status === "doing") bits.push(h("span", { class: "badge doing", text: "En progreso" }));
+  if (t.status === "review") bits.push(h("span", { class: "badge review", text: "En revisión" }));
   const p = Logic.prioOf(t);
   if (p < 4) bits.push(h("span", { class: "badge p" + p, title: "Prioridad " + PRIO_TEXT[p].toLowerCase(), text: "● " + PRIO_TEXT[p] }));
   const st = stepsOfTask(t.id);
@@ -362,34 +366,147 @@ document.addEventListener("click", (e) => { if (taskMenuEl && !e.target.closest(
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTaskMenu(); });
 window.addEventListener("hashchange", closeTaskMenu);
 
+/* ---------- Tablero por estados ---------- */
+
+const BOARD_COLORS = { todo: "var(--muted)", doing: "var(--blue)", review: "var(--peach)", done: "var(--mint)" };
+const statusLabel = (k) => (STATUSES.find((s) => s[0] === k) || [, k])[1];
+let boardQuick = null, boardQuickText = "", boardDrag = null, boardCol = "todo";
+
+// Tareas del tablero: las de la vista actual (abiertas) más las completadas que encajan en ese mismo ámbito
+function boardItems(today) {
+  const f = { q: taskUI.q, label: taskUI.label, prio: taskUI.prio };
+  const v = taskUI.view;
+  const scope = (t) => (v === "inbox" ? !t.list_id : v === "today" ? !!t.due_date && t.due_date <= today : v === "upcoming" ? !!t.due_date && t.due_date > today : true);
+  const open = Logic.filterTasks(state.tasks, { ...f, view: v }, today, listName).filter((t) => Logic.isOpen(t));
+  const done = Logic.filterTasks(state.tasks, { ...f, view: isListView() ? v : "done" }, today, listName).filter((t) => !Logic.isOpen(t) && scope(t));
+  return Logic.sortTasks([...open, ...done], taskUI.sort, v);
+}
+
+function moveToStatus(id, key) {
+  const t = getTask(id);
+  if (!t || t.status === key) return;
+  setStatus(id, key);
+  announce(`«${t.title}» movida a ${statusLabel(key)}.`);
+}
+function announce(text) { const el = $("#board-live"); if (el) el.textContent = text; }
+
 function boardCard(t) {
-  const idx = STATUSES.findIndex((s) => s[0] === t.status);
-  const move = (dir, text, title) =>
-    h("button", { type: "button", class: "icon-btn", title, "aria-label": `${title}: ${t.title}`, text, onclick: (e) => { e.stopPropagation(); setStatus(t.id, STATUSES[idx + dir][0]); } });
-  return h("div", {
-    class: "card-task" + (t.status === "done" ? " done" : ""), draggable: true,
-    ondragstart: (e) => e.dataTransfer.setData("text/plain", t.id), onclick: () => openTask(t.id),
-  }, h("div", { class: "title", text: t.title }), taskMeta(t), h("div", { class: "move" }, idx > 0 && move(-1, "◀", "Mover atrás"), idx < STATUSES.length - 1 && move(1, "▶", "Mover adelante")));
+  const card = h("div", {
+    class: "card-task" + (t.status === "done" ? " done" : ""), draggable: true, tabindex: "0", role: "button", "data-id": t.id,
+    "aria-label": `${t.title}. ${statusLabel(t.status)}. Intro abre la tarea; la tecla M mueve de estado.`,
+    ondragstart: (e) => { boardDrag = t.id; e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; setTimeout(() => card.classList.add("dragging")); },
+    ondragend: () => { boardDrag = null; card.classList.remove("dragging"); $$(".col.over").forEach((c) => c.classList.remove("over")); },
+    onclick: () => openTask(t.id),
+    onkeydown: (e) => {
+      if (e.target !== card) return;
+      if (e.key === "Enter") { e.preventDefault(); openTask(t.id); }
+      if (e.key === "m" || e.key === "M" || e.key === "ContextMenu") { e.preventDefault(); openMoveMenu(t, card.querySelector(".mv-btn")); }
+    },
+  },
+    h("div", { class: "card-row" }, h("div", { class: "title", text: t.title }),
+      h("button", { type: "button", class: "icon-btn mv-btn", title: "Mover a…", "aria-label": `Mover «${t.title}» a otro estado`, "aria-haspopup": "menu", text: "⋯",
+        onclick: (e) => { e.stopPropagation(); openMoveMenu(t, e.currentTarget); } })),
+    taskMeta(t, { compact: true }));
+  attachTouchDrag(card, t);
+  return card;
+}
+
+function openMoveMenu(t, anchor) {
+  openMenu(anchor, STATUSES.filter(([k]) => k !== t.status).map(([k, label]) => ({ label: "Mover a " + label, fn: () => moveToStatus(t.id, k) })), "Mover a…");
+}
+
+// Táctil: el arrastre empieza tras una pulsación larga; con ratón se usa el arrastre nativo
+function attachTouchDrag(card, t) {
+  let timer = null, ghost = null, active = false, sx = 0, sy = 0;
+  const colAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest(".col"); };
+  const clear = () => { clearTimeout(timer); timer = null; if (ghost) ghost.remove(); ghost = null; active = false; card.classList.remove("dragging"); $$(".col.over").forEach((c) => c.classList.remove("over")); };
+  card.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" || e.target.closest("button")) return;
+    sx = e.clientX; sy = e.clientY;
+    timer = setTimeout(() => {
+      active = true; card.classList.add("dragging");
+      ghost = card.cloneNode(true); ghost.classList.add("drag-ghost"); ghost.style.width = card.offsetWidth + "px";
+      document.body.append(ghost); place(sx, sy);
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, 380);
+  });
+  const place = (x, y) => { if (ghost) { ghost.style.left = x - ghost.offsetWidth / 2 + "px"; ghost.style.top = y - 20 + "px"; } };
+  card.addEventListener("pointermove", (e) => {
+    if (!active) { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 8) { clearTimeout(timer); timer = null; } return; }
+    e.preventDefault(); place(e.clientX, e.clientY);
+    $$(".col").forEach((c) => c.classList.toggle("over", c === colAt(e.clientX, e.clientY)));
+  });
+  card.addEventListener("touchmove", (e) => { if (active) e.preventDefault(); }, { passive: false });
+  const end = (e) => {
+    if (active) { const c = colAt(e.clientX, e.clientY); if (c && c.dataset.status) moveToStatus(t.id, c.dataset.status); card.addEventListener("click", (ev) => ev.stopImmediatePropagation(), { capture: true, once: true }); }
+    clear();
+  };
+  card.addEventListener("pointerup", end);
+  card.addEventListener("pointercancel", clear);
+  card.addEventListener("contextmenu", (e) => { if (timer || active) e.preventDefault(); });
+}
+
+function boardQuickAdd(key) {
+  const input = h("input", { class: "board-quick", placeholder: "Título de la tarea (Intro guarda, Esc cancela)", maxlength: "200", "aria-label": `Título de la nueva tarea en ${statusLabel(key)}`, value: boardQuickText,
+    oninput: (e) => { boardQuickText = e.target.value; },
+    onkeydown: async (e) => {
+      if (e.key === "Escape") { e.preventDefault(); boardQuick = null; boardQuickText = ""; renderTasks(); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const title = input.value.trim();
+        if (!title) return;
+        const today = todayKey();
+        boardQuickText = "";
+        await createTask({ title, status: key, list_id: isListView() ? currentListId() : null, due_date: taskUI.view === "today" ? today : null });
+        boardQuick = key; renderTasks();
+      }
+    },
+    onblur: () => { if (!boardQuickText.trim() && boardQuick === key) { boardQuick = null; renderTasks(); } } });
+  return input;
 }
 
 function renderBoard(items) {
-  $("#task-board").replaceChildren(
+  const doneCount = items.filter((t) => t.status === "done").length;
+  const keys = STATUSES.map((s) => s[0]);
+  if (!keys.includes(boardCol)) boardCol = "todo";
+  const board = $("#task-board");
+  const prevScroll = board.scrollLeft;
+  const tabs = h("div", { class: "board-tabs", role: "tablist", "aria-label": "Estado" },
+    ...STATUSES.map(([key, label]) => h("button", { type: "button", role: "tab", class: "board-tab" + (key === boardCol ? " on" : ""), "aria-selected": String(key === boardCol), "data-key": key,
+      onclick: () => { boardCol = key; const c = board.querySelector(`.col[data-status="${key}"]`); if (c) c.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }); $$(".board-tab").forEach((b) => { const on = b.dataset.key === key; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); }); } },
+      h("i", { class: "dot", style: `background:${BOARD_COLORS[key]}` }), label + " · " + items.filter((t) => t.status === key).length)));
+  $("#board-tabs-slot").replaceChildren(tabs);
+  board.setAttribute("aria-label", "Tablero de tareas por estado");
+  board.replaceChildren(
     ...STATUSES.map(([key, label]) => {
       const col = items.filter((t) => t.status === key);
-      const colEl = h("div", {
-        class: "col",
-        ondragover: (e) => { e.preventDefault(); colEl.classList.add("over"); },
-        ondragleave: () => colEl.classList.remove("over"),
-        ondrop: (e) => {
-          e.preventDefault();
-          colEl.classList.remove("over");
-          const id = e.dataTransfer.getData("text/plain");
-          if (id) setStatus(id, key);
-        },
-      }, h("div", { class: "col-head" }, h("strong", { text: label }), h("span", { class: "muted", text: String(col.length) })), col.map(boardCard));
+      const folded = key === "done" && !taskUI.doneOpen;
+      const colEl = h("section", { class: "col status-" + key, "data-status": key, "aria-label": `${label}, ${col.length} tareas`,
+        ondragover: (e) => { if (!boardDrag) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; colEl.classList.add("over"); },
+        ondragleave: (e) => { if (!colEl.contains(e.relatedTarget)) colEl.classList.remove("over"); },
+        ondrop: (e) => { e.preventDefault(); colEl.classList.remove("over"); const id = e.dataTransfer.getData("text/plain") || boardDrag; boardDrag = null; if (id) moveToStatus(id, key); },
+      });
+      const head = h("div", { class: "col-head" },
+        h("span", { class: "col-pill" }, h("i", { class: "dot" }), h("strong", { text: label }), h("span", { class: "muted col-count", text: String(col.length) })));
+      if (key === "done") head.append(h("button", { type: "button", class: "col-fold", "aria-expanded": String(!folded), text: folded ? "Mostrar" : "Plegar", onclick: () => { taskUI.doneOpen = !taskUI.doneOpen; saveUI(); renderTasks(); } }));
+      colEl.append(head);
+      if (!folded) {
+        if (!col.length) colEl.append(h("p", { class: "col-empty", text: key === "done" ? "Aquí aparecerá lo que vayas terminando." : "Nada por aquí. Arrastra una tarea o crea una nueva." }));
+        col.forEach((t) => colEl.append(boardCard(t)));
+        if (key !== "done") colEl.append(boardQuick === key ? boardQuickAdd(key) : h("button", { type: "button", class: "col-add", text: "+ Nueva tarea", onclick: () => { boardQuick = key; boardQuickText = ""; renderTasks(); } }));
+      }
       return colEl;
     })
   );
+  board.scrollLeft = prevScroll;
+  board.onscroll = () => { // en móvil, el selector de arriba sigue a la columna visible
+    if (board.scrollWidth <= board.clientWidth + 2) return;
+    const cols = [...board.querySelectorAll(".col")]; const bx = board.getBoundingClientRect().left;
+    const cur = cols.reduce((a, c) => (Math.abs(c.getBoundingClientRect().left - bx) < Math.abs(a.getBoundingClientRect().left - bx) ? c : a), cols[0]);
+    boardCol = cur.dataset.status;
+    $$(".board-tab").forEach((b) => { const on = b.dataset.key === boardCol; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); });
+  };
+  if (boardQuick) { const i = board.querySelector(".board-quick"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 }
 
 function renderList(items) {
@@ -440,8 +557,9 @@ function renderTasks() {
   show($("#task-list-wrap"), !board);
   show($("#task-board"), board);
   let shown = items.length;
-  if (board) renderBoard(items);
+  if (board) { const bi = boardItems(today); renderBoard(bi); shown = bi.length; }
   else shown = renderList(items);
+  show($("#board-tabs-slot"), board);
 
   const filtering = !!(taskUI.q.trim() || taskUI.label || taskUI.prio);
   $("#task-empty-text").textContent = filtering ? EMPTY_TEXT.filtered : EMPTY_TEXT[isListView() ? "list" : taskUI.view] || "";

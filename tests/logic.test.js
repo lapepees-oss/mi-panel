@@ -607,3 +607,120 @@ test("greeting y tagCounts", () => {
   const c = L.tagCounts([{ tags: ["a", "b"], status: "todo" }, { tags: ["a"], status: "done" }, { tags: ["a"], status: "todo" }]);
   assert.deepEqual(c, { a: 2, b: 1 });
 });
+
+/* ---------- Mapa de constancia: intensidad según hábitos que existían ese día ---------- */
+
+test("mapa de constancia: 0/3, 1/3, 2/3 y 3/3 (hábitos creados antes, modo normal)", () => {
+  const today = "2026-10-26", day = "2026-10-20";
+  const habits = ["a", "b", "c"].map((id) => ({ id, created_at: "2026-09-01T10:00:00" }));
+  const levels = [0, 1, 2, 3].map((n) => {
+    const by = L.logsByHabit(["a", "b", "c"].slice(0, n).map((id) => ({ habit_id: id, day })));
+    const c = L.heatCells(habits, by, today, 10).find((x) => x.key === day);
+    assert.equal(c.total, 3);
+    assert.equal(c.count, n);
+    return c.level;
+  });
+  assert.equal(levels[0], 0);
+  assert.ok(levels[1] >= 1 && levels[1] < levels[2] && levels[2] < levels[3], `niveles crecientes: ${levels}`);
+  assert.equal(levels[3], 4);
+});
+
+test("mapa de constancia: hábitos creados HOY pero con registros pasados (datos de ejemplo del invitado) — causa raíz", () => {
+  const today = "2026-10-26", day = "2026-10-20", created = `${today}T10:00:00`;
+  const habits = ["a", "b", "c"].map((id) => ({ id, created_at: created }));
+  // cada hábito tiene historia previa (registros anteriores al día mirado) → los tres existían ese día
+  const base = ["a", "b", "c"].map((id) => ({ habit_id: id, day: "2026-10-10" }));
+  const lv = [0, 1, 2, 3].map((n) => {
+    const by = L.logsByHabit([...base, ...["a", "b", "c"].slice(0, n).map((id) => ({ habit_id: id, day }))]);
+    const c = L.heatCells(habits, by, today, 20).find((x) => x.key === day);
+    assert.equal(c.total, 3, "los 3 existían ese día aunque su created_at sea de hoy");
+    return c.level;
+  });
+  assert.equal(lv[0], 0);
+  assert.ok(lv[1] < lv[3] && lv[1] <= lv[2] && lv[2] < lv[3]);
+  assert.equal(lv[3], 4);
+  // el caso del bug: antes el total era 0 y 1 marca daba nivel 4
+  const only1 = L.logsByHabit([...base, { habit_id: "a", day }]);
+  assert.notEqual(L.heatCells(habits, only1, today, 20).find((x) => x.key === day).level, 4);
+});
+
+test("habitStartDay: la creación o el primer registro, lo que ocurra antes", () => {
+  assert.equal(L.habitStartDay({ created_at: "2026-10-26T10:00:00" }, new Set(["2026-10-10", "2026-10-12"])), "2026-10-10");
+  assert.equal(L.habitStartDay({ created_at: "2026-09-01T10:00:00" }, new Set(["2026-10-10"])), "2026-09-01");
+  assert.equal(L.habitStartDay({}, new Set()), null);
+});
+
+/* ---------- Resumen personalizable ---------- */
+
+test("dashLayout: valores por defecto, ids desconocidos/repetidos y bloques nuevos", () => {
+  const d = L.dashLayout(null);
+  assert.deepEqual(d.order, L.DASH_WIDGETS);
+  assert.deepEqual(d.hidden, []);
+  const x = L.dashLayout({ order: ["note", "zzz", "timer", "note"], hidden: ["tasks", "tasks", "nope"] });
+  assert.deepEqual(x.order.slice(0, 2), ["note", "timer"]);
+  assert.equal(x.order.length, L.DASH_WIDGETS.length);
+  assert.equal(new Set(x.order).size, x.order.length);
+  assert.deepEqual(x.hidden, ["tasks"]);
+  assert.deepEqual(L.dashLayout("basura").order, L.DASH_WIDGETS);
+});
+
+test("moveWidget: sube y baja sin salirse de los extremos ni mutar", () => {
+  const o = ["a", "b", "c"];
+  assert.deepEqual(L.moveWidget(o, "b", -1), ["b", "a", "c"]);
+  assert.deepEqual(L.moveWidget(o, "b", 1), ["a", "c", "b"]);
+  assert.deepEqual(L.moveWidget(o, "a", -1), ["a", "b", "c"]);
+  assert.deepEqual(L.moveWidget(o, "c", 1), ["a", "b", "c"]);
+  assert.deepEqual(L.moveWidget(o, "x", 1), ["a", "b", "c"]);
+  assert.deepEqual(o, ["a", "b", "c"]);
+});
+
+/* ---------- Suscripciones ---------- */
+
+test("suscripciones: equivalente mensual y anual en céntimos exactos", () => {
+  const sub = (amount, cycle) => ({ amount, cycle });
+  assert.equal(L.subMonthlyCents(sub(10.99, "monthly")), 1099);
+  assert.equal(L.subYearlyCents(sub(10.99, "monthly")), 13188);
+  assert.equal(L.subMonthlyCents(sub(120, "yearly")), 1000);
+  assert.equal(L.subMonthlyCents(sub(30, "quarterly")), 1000);
+  assert.equal(L.subYearlyCents(sub(3, "weekly")), 15600);
+  assert.equal(L.subMonthlyCents(sub(3, "weekly")), 1300);
+  assert.equal(L.subMonthlyCents({ amount: 5 }), 500, "sin ciclo → mensual");
+});
+
+test("suscripciones: próximo cobro avanza por ciclos y conserva el día", () => {
+  const today = "2026-10-26";
+  assert.equal(L.nextCharge({ status: "active", cycle: "monthly", next_charge: "2026-10-30" }, today), "2026-10-30");
+  assert.equal(L.nextCharge({ status: "active", cycle: "monthly", next_charge: "2026-08-15" }, today), "2026-11-15");
+  assert.equal(L.nextCharge({ status: "active", cycle: "weekly", next_charge: "2026-10-01" }, today), "2026-10-29");
+  assert.equal(L.nextCharge({ status: "active", cycle: "yearly", next_charge: "2025-11-02" }, today), "2026-11-02");
+  assert.equal(L.nextCharge({ status: "active", cycle: "quarterly", next_charge: "2026-01-31" }, today), "2026-10-31", "31 ene → 30 abr → 31 jul → 31 oct");
+  assert.equal(L.nextCharge({ status: "active", cycle: "monthly", next_charge: "2026-01-31" }, "2026-02-10"), "2026-02-28");
+  assert.equal(L.nextCharge({ status: "paused", cycle: "monthly", next_charge: "2026-10-30" }, today), null);
+  assert.equal(L.nextCharge({ status: "active", cycle: "monthly" }, today), null, "sin fecha no se inventa");
+});
+
+test("suscripciones: resumen solo cuenta las activas; canceladas = lo que dejas de pagar", () => {
+  const today = "2026-10-26";
+  const subs = [
+    { name: "A", amount: 10, cycle: "monthly", status: "active", category: "Ocio", next_charge: "2026-10-28" },
+    { name: "B", amount: 120, cycle: "yearly", status: "active", next_charge: "2027-03-01" },
+    { name: "C", amount: 8, cycle: "monthly", status: "paused" },
+    { name: "D", amount: 15, cycle: "monthly", status: "cancelled" },
+  ];
+  const r = L.subSummary(subs, today);
+  assert.deepEqual([r.active, r.paused, r.cancelled], [2, 1, 1]);
+  assert.equal(r.monthly, 2000);
+  assert.equal(r.yearly, 24000);
+  assert.equal(r.freedMonthly, 1500);
+  assert.equal(r.upcoming[0].sub.name, "A");
+  assert.equal(r.upcoming[0].days, 2);
+  assert.equal(r.byCategory.Ocio, 1000);
+  assert.equal(r.byCategory.Suscripciones, 1000);
+  assert.deepEqual(L.subSummary([], today).monthly, 0);
+});
+
+test("isOpen: «En revisión» sigue siendo una tarea abierta y solo done cierra", () => {
+  assert.equal(L.isOpen({ status: "review" }), true);
+  assert.equal(L.isOpen({ status: "doing" }), true);
+  assert.equal(L.isOpen({ status: "done" }), false);
+});

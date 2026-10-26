@@ -1,5 +1,6 @@
 "use strict";
-// Finanzas manuales: movimientos, presupuestos (total y por categoría), objetivos de ahorro, gráficos y CSV.
+// Finanzas manuales: movimientos, presupuestos (total y por categoría), objetivos de ahorro, suscripciones
+// (activa/pausada/cancelada con gasto mensual y anual), gráficos y CSV.
 // Todos los importes se calculan en céntimos enteros (Logic) y se guardan como numeric(12,2).
 // No hay conexión con ningún banco: todo lo escribes tú.
 
@@ -109,6 +110,7 @@ function renderFinance() {
 
   renderTransactions(mk);
   renderGoals();
+  renderSubs();
   renderInsights(mk, totals, bs);
 }
 
@@ -195,6 +197,86 @@ function renderGoals() {
     })
   );
 }
+
+/* ---------- Suscripciones ---------- */
+
+const SUB_ORDER = { active: 0, paused: 1, cancelled: 2 };
+
+function renderSubs() {
+  const list = $("#subsList"), sum = $("#subsSummary");
+  if (!state.subsReady) {
+    sum.replaceChildren();
+    list.replaceChildren(h("li", { class: "empty-state", text: "Falta la tabla de suscripciones: ejecuta migracion-v6.sql en Supabase y recarga." }));
+    return;
+  }
+  const eur = Logic.formatEUR, today = todayKey();
+  const s = Logic.subSummary(state.subs, today);
+  $("#subsCaption").textContent = state.subs.length ? `${s.active} activa${s.active === 1 ? "" : "s"}${s.paused ? ` · ${s.paused} en pausa` : ""}${s.cancelled ? ` · ${s.cancelled} cancelada${s.cancelled === 1 ? "" : "s"}` : ""}` : "Lo que pagas de forma recurrente.";
+  const stat = (label, value, note) => h("div", { class: "subs-stat" }, h("span", { class: "subs-stat-label", text: label }), h("strong", { text: value }), note ? h("small", { text: note }) : null);
+  const next = s.upcoming[0];
+  sum.replaceChildren(
+    stat("Gasto mensual", eur(s.monthly), "equivalente de las activas"),
+    stat("Gasto anual", eur(s.yearly), "si sigues igual"),
+    next ? stat("Próximo cobro", next.sub.name, `${eur(next.cents)} · ${next.days <= 0 ? "hoy" : next.days === 1 ? "mañana" : "en " + next.days + " días"}`) : null,
+    s.freedMonthly > 0 ? stat("Ahorro por cancelar", eur(s.freedMonthly) + "/mes", "lo que ya no pagas") : null
+  );
+  if (!state.subs.length) {
+    list.replaceChildren(h("li", { class: "empty-state", text: "Aún no has añadido suscripciones. Añade una para ver cuánto gastas al mes y al año." }));
+    return;
+  }
+  const subs = [...state.subs].sort((a, b) => SUB_ORDER[Logic.subStatus(a)] - SUB_ORDER[Logic.subStatus(b)] || Logic.subMonthlyCents(b) - Logic.subMonthlyCents(a));
+  list.replaceChildren(...subs.map((sub) => {
+    const st = Logic.subStatus(sub), nc = Logic.nextCharge(sub, today);
+    const cents = Logic.centsFromDb(sub.amount);
+    const detail = `${eur(cents)} · ${Logic.SUB_CYCLES[Logic.subCycle(sub)].toLowerCase()}` + (Logic.subCycle(sub) !== "monthly" ? ` (${eur(Logic.subMonthlyCents(sub))}/mes)` : "") +
+      (st === "active" && nc ? ` · cobro ${Logic.shortDate(nc)}` : st === "cancelled" && sub.ended_on ? ` · cancelada el ${Logic.shortDate(sub.ended_on)}` : "");
+    const btn = (text, fn, cls = "secondary small") => h("button", { type: "button", class: cls, text, onclick: fn });
+    return h("li", { class: "sub-row " + st },
+      h("div", { class: "sub-main" },
+        h("div", { class: "sub-title" }, h("strong", { text: sub.name }), h("span", { class: "sub-badge " + st, text: Logic.SUB_STATUS[st] })),
+        h("small", { text: detail })),
+      h("div", { class: "sub-actions row nowrap" },
+        st === "active" ? btn("Pausar", () => setSubStatus(sub, "paused")) : null,
+        st === "paused" ? btn("Reactivar", () => setSubStatus(sub, "active")) : null,
+        st !== "cancelled" ? btn("Cancelar", () => setSubStatus(sub, "cancelled")) : btn("Reactivar", () => setSubStatus(sub, "active")),
+        btn("Editar", () => openSubWizard(sub)),
+        btn("Borrar", () => confirmDeleteSub(sub), "secondary small danger-text")));
+  }));
+}
+
+async function setSubStatus(sub, status) {
+  if (status === "cancelled" && !(await askConfirm({ title: `¿Cancelar «${sub.name}»?`, text: "Se marca como cancelada y deja de contar en tu gasto. Podrás reactivarla o borrarla.", confirmLabel: "Cancelar suscripción", danger: true }))) return;
+  updateSub(sub.id, { status, ended_on: status === "cancelled" ? todayKey() : null });
+}
+
+async function confirmDeleteSub(sub) {
+  if (await askConfirm({ title: `¿Borrar «${sub.name}»?`, text: "Se elimina del todo, no solo se cancela. No se puede deshacer.", confirmLabel: "Borrar", danger: true })) deleteSub(sub.id);
+}
+
+function openSubWizard(existing = null) {
+  const editing = !!existing, today = todayKey();
+  const steps = [
+    { key: "name", label: "¿Cómo se llama la suscripción?", type: "text", placeholder: "Música, nube, gimnasio…", required: true, requiredMessage: "Ponle un nombre.", maxLength: 60, summaryLabel: "Nombre" },
+    amountStep("amount", "¿Cuánto pagas cada vez?", { required: true, requiredMessage: "Escribe el importe.", placeholder: "9,99", summaryLabel: "Importe (€)" }),
+    { key: "cycle", label: "¿Cada cuánto se cobra?", type: "choice", summaryLabel: "Frecuencia", options: Object.entries(Logic.SUB_CYCLES).map(([value, label]) => ({ value, label })) },
+    { key: "next_charge", label: "¿Cuándo es el próximo cobro?", type: "date", hint: "Opcional. Sirve para avisarte del próximo cobro.", summaryLabel: "Próximo cobro",
+      quick: [{ label: "Hoy", value: today }, { label: "Dentro de una semana", value: Logic.addDays(today, 7) }],
+      validate: (v) => (!v || Logic.isDayKey(v) ? "" : "Elige una fecha válida."), format: (v) => (Logic.isDayKey(v) ? Logic.longDate(v) : "Sin fecha") },
+  ];
+  const initial = existing
+    ? { name: existing.name, amount: Logic.centsToPlain(Logic.centsFromDb(existing.amount)), cycle: Logic.subCycle(existing), next_charge: existing.next_charge || "" }
+    : { name: "", amount: "", cycle: "monthly", next_charge: "" };
+  openWizard({
+    steps, initial, earlyAfter: 3, submitLabel: editing ? "Guardar cambios" : "Añadir suscripción", doneMessage: editing ? "Suscripción actualizada." : "Suscripción añadida.",
+    onSubmit: (v) => {
+      const amt = Logic.parseCents(v.amount);
+      if (!amt.ok) return amt.error;
+      const row = { name: v.name, cents: amt.cents, cycle: v.cycle, category: existing ? existing.category : "Suscripciones", next_charge: v.next_charge || null, notes: existing ? existing.notes : "" };
+      return editing ? editSub(existing.id, row) : createSub(row);
+    },
+  });
+}
+$("#addSub").addEventListener("click", () => openSubWizard());
 
 /* ---------- Movimientos ---------- */
 

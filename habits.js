@@ -1,5 +1,5 @@
 "use strict";
-// Hábitos: categorías, frecuencia y color; registro por fecha real (también días pasados), rachas, calendario de 35 días y estadísticas.
+// Hábitos: categorías, frecuencia, emoji y color propios; registro por fecha real (también días pasados), rachas, calendario de 35 días y estadísticas.
 // Fuente de verdad: state.habits + state.logs (tabla habit_logs, un registro por hábito y día). Todo lo demás se calcula.
 
 let habitCat = "Todos"; // filtro de categoría
@@ -48,24 +48,38 @@ function habitNameProblem(name, ignoreId) {
   return "";
 }
 
-function openHabitForm(hb = null) {
+// Emojis sugeridos para hábitos (el usuario puede escribir cualquier otro)
+const HABIT_EMOJIS = ["📖", "🏋️", "🏃", "🧘", "💧", "😴", "🥗", "💪", "🚶", "🎸", "✍️", "🧠", "💻", "🎨", "🧹", "🪥", "💊", "☀️", "🌱", "🙏", "📵", "🎯", "🛏️", "🚴", "🏊", "🍎", "☕", "📚", "🗣️", "🎧", "🧪"];
+// Un único emoji: sin letras ni dígitos, con al menos un pictograma y como mucho un grafema (o una secuencia unida)
+function habitEmojiOk(v) {
+  if (!v || v.length > 12 || /[\p{L}\p{N}]/u.test(v.replace(/\p{Extended_Pictographic}|\uFE0F|\u200D|\u20E3/gu, "")) ) return false;
+  if (!/\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(v)) return false;
+  const segs = typeof Intl !== "undefined" && Intl.Segmenter ? [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(v)].length : 1;
+  return segs <= 1;
+}
+
+const defaultHabitEmoji = (cat) => (HABIT_EMOJIS.includes(Logic.HABIT_ICONS[cat]) ? Logic.HABIT_ICONS[cat] : "🌱");
+
+function openHabitForm(hb = null, startAt = null) {
   const choices = (list) => list.map((v) => ({ value: v, label: v }));
   openWizard({
     steps: [
       { key: "name", label: hb ? "Nombre del hábito" : "¿Cómo se llama el hábito?", type: "text", required: true, requiredMessage: "Escribe un nombre para el hábito.", maxLength: 80, summaryLabel: "Hábito", validate: (v) => habitNameProblem(v.trim(), hb && hb.id) },
       { key: "category", label: "Categoría", type: "choice", options: choices(Logic.HABIT_CATEGORIES), summaryLabel: "Categoría" },
       { key: "frequency", label: "Frecuencia", type: "choice", hint: "Entre semana no cuenta sábados ni domingos; Semanal basta con una vez por semana.", options: choices(Logic.HABIT_FREQUENCIES.filter((f) => f !== "Personalizada")), summaryLabel: "Frecuencia" },
+      { key: "emoji", label: "Emoji del hábito", type: "emoji", options: HABIT_EMOJIS, hint: "Elige uno o escribe el tuyo.", required: true, requiredMessage: "Elige o escribe un emoji.", validate: (v) => (habitEmojiOk(v.trim()) ? "" : "Escribe un único emoji (sin letras ni números)."), summaryLabel: "Emoji" },
       { key: "color", label: "Color identificativo", type: "color", options: Logic.HABIT_COLORS.map((c) => ({ value: c, label: Logic.HABIT_COLOR_NAMES[c] })), summaryLabel: "Color" },
     ],
     initial: hb
-      ? { name: hb.name, category: Logic.habitCategory(hb), frequency: Logic.habitFrequency(hb), color: Logic.habitColor(hb) }
-      : { name: "", category: habitCat !== "Todos" ? habitCat : "Salud", frequency: "Diario", color: Logic.HABIT_COLORS[0] },
+      ? { name: hb.name, category: Logic.habitCategory(hb), frequency: Logic.habitFrequency(hb), emoji: hb.emoji || "🌱", color: Logic.habitColor(hb) }
+      : { name: "", category: habitCat !== "Todos" ? habitCat : "Salud", frequency: "Diario", emoji: defaultHabitEmoji(habitCat !== "Todos" ? habitCat : "Salud"), color: Logic.HABIT_COLORS[0] },
     earlyAfter: 0,
+    startAt,
     submitLabel: hb ? "Guardar cambios" : "Crear hábito",
     doneMessage: hb ? "Hábito actualizado." : "Hábito creado. Márcalo hoy si ya lo has hecho.",
     onSubmit: (v) => {
-      const data = { name: v.name.trim(), category: v.category, frequency: v.frequency, color: v.color };
-      return hb ? updateHabit(hb.id, data) : createHabit({ ...data, emoji: Logic.HABIT_ICONS[v.category] || "🌱" });
+      const data = { name: v.name.trim(), category: v.category, frequency: v.frequency, emoji: v.emoji.trim(), color: v.color };
+      return hb ? updateHabit(hb.id, data) : createHabit(data);
     },
   });
 }
@@ -109,7 +123,7 @@ function habitCard(hb, weekKeys, byHabit, today) {
   });
   menu.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-dots"/></svg>';
 
-  const icon = h("div", { class: "hb-emoji", "aria-hidden": "true", text: hb.emoji || "🌱" });
+  const icon = h("button", { type: "button", class: "hb-emoji", title: "Cambiar emoji", "aria-label": `Cambiar el emoji de «${hb.name}»`, text: hb.emoji || "🌱", onclick: () => openHabitForm(hb, "emoji") });
   const doneLabel = freq === "Semanal" && status === "done" && !doneToday ? "Cumplido esta semana" : doneToday ? "Completado hoy ✓" : status === "off" ? "Hoy no toca · marcar" : "Completar hoy";
   const btn = h("button", {
     type: "button", class: "hb-complete" + (status === "done" ? " is-done" : ""), "aria-pressed": String(doneToday),

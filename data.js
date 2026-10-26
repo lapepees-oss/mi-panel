@@ -1,5 +1,7 @@
 "use strict";
-// Persistencia (Supabase): carga paginada y operaciones de hábitos, diario, finanzas e importación.
+// Persistencia (Supabase): carga paginada POR TABLA (LOADERS) y operaciones de hábitos, diario, finanzas, ideas,
+// suscripciones e importación. loadAll(tablas) solo relee lo que cambió para gastar poco tráfico del plan gratuito
+// (ver PLAN-SUPABASE.md).
 // Las tareas y el cronómetro mantienen sus operaciones en tasks.js y timer.js.
 
 const PAGE_SIZE = 1000; // límite por petición de PostgREST
@@ -39,37 +41,69 @@ async function saveSession({ label, duration_ms, kind }) {
   setSync(true);
 }
 
-let loading = false;
-let loadAgain = false;
-let reloadTimeout = null;
+/* ---------- Carga de datos ----------
+ * Antes, cada cambio (propio o de otro dispositivo) volvía a descargar TODAS las tablas. Eso multiplica el tráfico
+ * (egress) de Supabase según crece tu historial. Ahora cada tabla tiene su propio cargador y solo se vuelve a leer
+ * la que cambió (más las que dependen de ella). loadAll() sin argumentos sigue cargándolo todo (inicio, reconexión).
+ */
 
-async function loadAll() {
+let loading = false;
+let reloadTimeout = null;
+let pendingTables = new Set(); // tablas pendientes de recargar mientras hay una carga en curso
+let pendingAll = false;
+let lastFullLoad = 0;
+
+const latest = (col) => (q) => q.order(col, { ascending: false }).order("id");
+const oldest = (col) => (q) => q.order(col).order("id");
+// Un cargador por tabla: rellena su parte de `state`. Las claves son nombres de tabla de Supabase.
+const LOADERS = {
+  tasks: async () => { state.tasks = await fetchAll(() => latest("created_at")(db.from("tasks").select("*"))); },
+  task_lists: async () => { state.lists = await fetchAll(() => oldest("created_at")(db.from("task_lists").select("*"))); },
+  task_steps: async () => { state.steps = await fetchAll(() => oldest("created_at")(db.from("task_steps").select("*"))); },
+  habits: async () => { state.habits = await fetchAll(() => oldest("created_at")(db.from("habits").select("*"))); },
+  habit_logs: async () => { state.logs = await fetchAll(() => db.from("habit_logs").select("*").order("day").order("habit_id")); },
+  journal_entries: async () => { state.journal = await fetchAll(() => latest("entry_date")(db.from("journal_entries").select("*"))); },
+  transactions: async () => { state.transactions = await fetchAll(() => latest("tx_date")(db.from("transactions").select("*"))); },
+  budgets: async () => { state.budgets = await fetchAll(() => db.from("budgets").select("*").order("category")); },
+  savings_goals: async () => { state.goals = await fetchAll(() => oldest("created_at")(db.from("savings_goals").select("*"))); },
+  // Solo las sesiones recientes (SESSION_DAYS): el historial antiguo no se descarga cada vez
+  timer_sessions: async () => { state.sessions = await fetchAll(() => latest("created_at")(db.from("timer_sessions").select("*").gte("created_at", new Date(Date.now() - SESSION_DAYS * 86400000).toISOString()))); },
+  routines: async () => { state.routines = await fetchAll(() => oldest("created_at")(db.from("routines").select("*"))); },
+  routine_steps: async () => { state.routineSteps = await fetchAll(() => db.from("routine_steps").select("*").order("id")); },
+  timer: async () => { state.timer = await loadTimer(); },
+  ideas: () => loadIdeas(),
+  subscriptions: () => loadSubs(),
+  intelligence: () => loadIntel(), // intelligence_settings + intelligence_items
+};
+// Si cambia X, también hay que releer lo que depende de X (borrados en cascada, etc.)
+const TABLE_ALIAS = { intelligence_settings: "intelligence", intelligence_items: "intelligence" };
+const DEPENDENTS = { task_lists: ["tasks", "task_steps"], tasks: ["task_steps"], habits: ["habit_logs"], routines: ["routine_steps"] };
+
+function expandTables(names) {
+  const out = new Set();
+  for (const raw of names) {
+    const n = TABLE_ALIAS[raw] || raw;
+    if (!LOADERS[n]) return null; // tabla desconocida → por seguridad, recarga completa
+    out.add(n);
+    (DEPENDENTS[n] || []).forEach((x) => out.add(x));
+  }
+  return out;
+}
+
+async function loadAll(only) {
   if (!user) return;
-  // Una sola carga a la vez; si llega otra petición mientras tanto, se repite al terminar
+  const wanted = only && only.length ? expandTables(only) : null;
+  // Una sola carga a la vez; lo que llegue mientras tanto se acumula y se repite al terminar
   if (loading) {
-    loadAgain = true;
+    if (wanted) wanted.forEach((t) => pendingTables.add(t));
+    else pendingAll = true;
     return;
   }
   loading = true;
   try {
-    const [tasks, lists, steps, habits, logs, journal, transactions, budgets, goals, sessions, routines, routineSteps] = await Promise.all([
-      fetchAll(() => db.from("tasks").select("*").order("created_at", { ascending: false }).order("id")),
-      fetchAll(() => db.from("task_lists").select("*").order("created_at").order("id")),
-      fetchAll(() => db.from("task_steps").select("*").order("created_at").order("id")),
-      fetchAll(() => db.from("habits").select("*").order("created_at").order("id")),
-      fetchAll(() => db.from("habit_logs").select("*").order("day").order("habit_id")),
-      fetchAll(() => db.from("journal_entries").select("*").order("entry_date", { ascending: false }).order("id")),
-      fetchAll(() => db.from("transactions").select("*").order("tx_date", { ascending: false }).order("id")),
-      fetchAll(() => db.from("budgets").select("*").order("category")),
-      fetchAll(() => db.from("savings_goals").select("*").order("created_at").order("id")),
-      fetchAll(() => db.from("timer_sessions").select("*").gte("created_at", new Date(Date.now() - SESSION_DAYS * 86400000).toISOString()).order("created_at", { ascending: false }).order("id")),
-      fetchAll(() => db.from("routines").select("*").order("created_at").order("id")),
-      fetchAll(() => db.from("routine_steps").select("*").order("id")),
-    ]);
-    Object.assign(state, { tasks, lists, steps, habits, logs, journal, transactions, budgets, goals, sessions, routines, routineSteps });
-    state.timer = await loadTimer();
-    await loadIdeas();
-    await loadIntel();
+    const names = wanted ? [...wanted] : Object.keys(LOADERS);
+    await Promise.all(names.map((n) => LOADERS[n]()));
+    if (!wanted) lastFullLoad = Date.now();
     showBanner("");
     renderAll();
   } catch (e) {
@@ -79,17 +113,30 @@ async function loadAll() {
     );
   } finally {
     loading = false;
-    if (loadAgain) {
-      loadAgain = false;
-      scheduleReload();
+    if (pendingAll || pendingTables.size) {
+      const t = pendingAll ? null : [...pendingTables];
+      pendingAll = false;
+      pendingTables = new Set();
+      scheduleReload(t);
     }
   }
 }
 
-function scheduleReload() {
+// Agrupa avisos seguidos (p. ej. varios cambios a la vez) en una sola lectura de las tablas afectadas
+let scheduledTables = new Set(), scheduledAll = false;
+function scheduleReload(tables) {
+  if (tables && tables.length) tables.forEach((t) => scheduledTables.add(t));
+  else scheduledAll = true;
   clearTimeout(reloadTimeout);
-  reloadTimeout = setTimeout(loadAll, 150);
+  reloadTimeout = setTimeout(() => {
+    const t = scheduledAll ? null : [...scheduledTables];
+    scheduledTables = new Set(); scheduledAll = false;
+    loadAll(t);
+  }, 150);
 }
+
+// ¿Hace falta recargar todo al volver a la app? Solo si pasó un rato desde la última carga completa
+const needsFullReload = () => Date.now() - lastFullLoad > 60000;
 
 /* ---------- Hábitos ---------- */
 
@@ -221,6 +268,40 @@ async function loadIdeas() {
     if (state.ideasReady) throw e;
   }
 }
+
+async function loadSubs() {
+  try {
+    state.subs = await fetchAll(() => db.from("subscriptions").select("*").order("created_at", { ascending: false }).order("id"));
+    state.subsReady = true;
+  } catch (e) {
+    state.subs = [];
+    state.subsReady = !missingTable(e);
+    if (state.subsReady) throw e;
+  }
+}
+
+async function subWrite(query) {
+  const { error } = await query;
+  if (error) {
+    console.error(error);
+    setSync(false);
+    toast(missingTable(error) ? "Falta la tabla de suscripciones: ejecuta migracion-v6.sql en Supabase." : Logic.dataErrorText(error), 7000);
+    throw error;
+  }
+  setSync(true);
+}
+
+const subRow = (v) => ({
+  name: v.name.trim(), amount: Logic.centsToDb(v.cents), cycle: v.cycle, category: (v.category || "Suscripciones").trim() || "Suscripciones",
+  next_charge: v.next_charge || null, notes: (v.notes || "").trim(),
+});
+const createSub = (v) => mutate(null, () => subWrite(db.from("subscriptions").insert({ ...subRow(v), status: "active", started_on: v.next_charge || null })));
+function updateSub(id, patch) {
+  const s = state.subs.find((x) => x.id === id);
+  return mutate(() => s && Object.assign(s, patch), () => subWrite(db.from("subscriptions").update(patch).eq("id", id)));
+}
+const editSub = (id, v) => updateSub(id, subRow(v));
+const deleteSub = (id) => mutate(() => { state.subs = state.subs.filter((x) => x.id !== id); }, () => subWrite(db.from("subscriptions").delete().eq("id", id)));
 
 async function ideaWrite(query) {
   const { error } = await query;

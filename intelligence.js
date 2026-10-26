@@ -18,7 +18,6 @@ const rulesOnly = () => state.intel.mode === "rules";
 /* ---------- Descartes (comodidad por dispositivo) ---------- */
 const dismissals = () => { const m = store.get("intelDismissed", {}); const t = todayKey(); return Object.fromEntries(Object.entries(m).filter(([, until]) => until >= t)); };
 function dismissCard(id, days = 14) { const m = dismissals(); m[id] = Logic.addDays(todayKey(), days); store.set("intelDismissed", m); renderIntelligence(); }
-function restoreDismissed() { store.set("intelDismissed", {}); renderIntelligence(); }
 
 /* ---------- Tarjetas ---------- */
 const KIND_CLASS = { confirmed: "k-confirmed", pattern: "k-pattern", estimate: "k-estimate" };

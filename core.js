@@ -1,5 +1,7 @@
 "use strict";
 // Núcleo compartido: estado único, utilidades de DOM, avisos y errores.
+// mutate(local, remote) es la única vía para cambiar datos: aplica el cambio en pantalla al instante (optimista),
+// lo escribe en Supabase y relee solo las tablas tocadas.
 // La lógica pura (fechas, dinero, rachas…) vive en logic.js; aquí solo hay lo que toca el navegador.
 
 const $ = (s, root = document) => root.querySelector(s);
@@ -19,7 +21,7 @@ let user = null;
 const state = {
   tasks: [], lists: [], steps: [],
   habits: [], logs: [],
-  journal: [], ideas: [], ideasReady: true,
+  journal: [], ideas: [], ideasReady: true, subs: [], subsReady: true,
   intel: { enabled: true, expires_at: null, mode: "hybrid", stored: false, ready: true }, intelItems: [], transactions: [], budgets: [], goals: [],
   timer: null, sessions: [], routines: [], routineSteps: [],
 };
@@ -107,16 +109,6 @@ function closeDialog(dlg) {
   else dlg.removeAttribute("open");
 }
 
-const debounce = (fn, ms) => {
-  let t;
-  const wrapped = (...a) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...a), ms);
-  };
-  wrapped.cancel = () => clearTimeout(t);
-  return wrapped;
-};
-
 // Descarga un archivo generado en el navegador (CSV, JSON)
 function downloadFile(name, mime, text) {
   const blob = new Blob([text], { type: mime });
@@ -169,6 +161,8 @@ async function run(promise) {
 }
 
 // Cambio optimista: se pinta ya, se guarda, y se vuelve a leer la verdad del servidor
+// Tablas escritas desde la última lectura; las rellena trackWrites() en app.js
+const writtenTables = new Set();
 async function mutate(local, remote) {
   if (local) local();
   renderAll();
@@ -178,7 +172,10 @@ async function mutate(local, remote) {
   } catch (_) {
     ok = false; // run() ya avisó al usuario
   }
-  await loadAll();
+  // Solo se relee lo que esta operación escribió (ver trackWrites en app.js); si no se sabe, se relee todo
+  const tables = [...writtenTables];
+  writtenTables.clear();
+  await loadAll(tables);
   return ok;
 }
 

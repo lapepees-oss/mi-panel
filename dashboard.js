@@ -1,6 +1,7 @@
 "use strict";
 // Resumen: saludo, métricas, mapa de constancia por hábito, resumen semanal, próximas tareas, actividad, finanzas y nota rápida.
-// No guarda datos propios: lee state (la misma fuente que Hábitos, Tareas, Diario y Finanzas).
+// Los bloques se pueden ocultar y reordenar (diseño guardado en este navegador) y hay un cronómetro integrado
+// que usa el mismo temporizador que la página Tiempo. No guarda datos propios: lee state (la misma fuente que Hábitos, Tareas, Diario y Finanzas).
 
 function displayName() {
   if (!user) return "";
@@ -54,7 +55,7 @@ function renderDashboard() {
   show($("#dbHeatEmpty"), rows.length === 0);
   $("#dbHeat").replaceChildren(
     ...rows.map((r) => h("div", { class: "db-heat-row" },
-      h("span", { class: "db-heat-name", title: r.habit.name, text: r.habit.name }),
+      h("span", { class: "db-heat-name", title: r.habit.name, text: `${r.habit.emoji || "🌱"} ${r.habit.name}` }),
       h("div", { class: "db-heat-cells", style: `--hc:${Logic.habitColor(r.habit)}` },
         ...r.cells.map((c) => {
           const label = `${r.habit.name}, ${Logic.longDate(c.key)}: ${c.state === "done" ? "cumplido" : c.state === "miss" ? "no cumplido" : "sin registro"}`;
@@ -134,3 +135,99 @@ $("#dbQuoteHistory").addEventListener("click", () => {
 });
 
 renderers.push(renderDashboard);
+
+/* ---------- Personalizar el Resumen: ordenar y ocultar bloques (se guarda en este navegador) ---------- */
+
+let dashEditing = false;
+const dashLayoutNow = () => Logic.dashLayout(store.get("dashLayout", null));
+
+function applyDashLayout() {
+  const board = $("#dbBoard");
+  if (!board) return;
+  const { order, hidden } = dashLayoutNow();
+  // Sin cambios de diseño no se toca el DOM (así no se pierde el foco ni el cursor de la nota rápida en cada repintado)
+  const sig = JSON.stringify([order, hidden, dashEditing]);
+  if (board.dataset.sig === sig) return;
+  board.dataset.sig = sig;
+  const els = new Map($$("#dbBoard > .db-widget").map((el) => [el.dataset.widget, el]));
+  for (const id of order) {
+    const el = els.get(id);
+    if (!el) continue;
+    board.append(el); // el orden del DOM es el orden visual (también para teclado y lectores de pantalla)
+    el.classList.toggle("is-off", hidden.includes(id));
+    let tools = el.querySelector(":scope > .db-tools");
+    if (!tools) {
+      tools = h("div", { class: "db-tools" });
+      el.prepend(tools);
+    }
+    const i = order.indexOf(id), title = el.dataset.title;
+    tools.replaceChildren(
+      h("b", { text: title + (hidden.includes(id) ? " (oculto)" : "") }),
+      h("button", { type: "button", title: "Subir", "aria-label": `Subir «${title}»`, disabled: i === 0, onclick: () => saveDashLayout({ order: Logic.moveWidget(order, id, -1), hidden }, id, "up") }, "↑"),
+      h("button", { type: "button", title: "Bajar", "aria-label": `Bajar «${title}»`, disabled: i === order.length - 1, onclick: () => saveDashLayout({ order: Logic.moveWidget(order, id, 1), hidden }, id, "down") }, "↓"),
+      h("button", { type: "button", "aria-pressed": String(hidden.includes(id)), onclick: () => saveDashLayout({ order, hidden: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id] }, id) }, hidden.includes(id) ? "Mostrar" : "Ocultar")
+    );
+  }
+  board.classList.toggle("editing", dashEditing);
+  show($("#dbEditBar"), dashEditing);
+  const b = $("#dbCustomize");
+  b.setAttribute("aria-pressed", String(dashEditing));
+  b.textContent = dashEditing ? "⚙ Editando…" : "⚙ Personalizar";
+}
+
+function saveDashLayout(layout, focusId, dir) {
+  store.set("dashLayout", layout);
+  applyDashLayout();
+  // tras mover, el foco sigue en el mismo botón (si ya no puede moverse más, pasa al otro)
+  const el = $(`#dbBoard > .db-widget[data-widget="${focusId}"]`);
+  if (el && dir) { const btns = el.querySelectorAll(".db-tools button"); const t = btns[dir === "up" ? 0 : 1]; (t && !t.disabled ? t : btns[dir === "up" ? 1 : 0]).focus(); }
+}
+
+$("#dbCustomize").addEventListener("click", () => { dashEditing = !dashEditing; applyDashLayout(); });
+$("#dbLayoutDone").addEventListener("click", () => { dashEditing = false; applyDashLayout(); $("#dbCustomize").focus(); });
+$("#dbLayoutReset").addEventListener("click", () => { store.set("dashLayout", null); applyDashLayout(); toast("Resumen restablecido."); });
+
+/* ---------- Bloque de tiempo: usa el MISMO temporizador de la página Tiempo (una sola fuente de verdad) ---------- */
+
+function syncDashTimer() {
+  const t = state.timer;
+  const root = $("#dbTimer");
+  if (!root || !t) return;
+  const mode = currentMode();
+  const running = !!t.running;
+  const el = elapsed();
+  root.classList.toggle("running", running);
+  $("#dbTimerMode").textContent = MODE_NAMES[mode] + (t.label ? " · " + t.label : "");
+  $$("#dbTimer .db-tm").forEach((b) => { const on = b.dataset.mode === mode; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); });
+  // el reloj es el mismo texto que pinta la página Tiempo en cada tic
+  $("#dbTimerClock").textContent = $("#timer-display").textContent;
+  const idle = !running && el === 0;
+  show($("#dbTimerAdjust"), mode === "timer" && idle);
+  $("#dbTimerNote").textContent = running ? "En marcha. Se guarda al finalizar." : el > 0 ? "En pausa." : mode === "timer" ? `Duración: ${Logic.formatDuration(Math.max(0, Number(t.target_ms) || 0))}` : mode === "stopwatch" ? "Listo para empezar." : mode === "pomodoro" ? "Pomodoro listo." : "";
+  // Barra de progreso: temporizador → tiempo gastado de la duración; pomodoro → fase actual; cronómetro → sin tope (sin barra)
+  const bar = $("#dbTimerBar");
+  let pct = null;
+  if (mode === "timer") { const tg = Math.max(0, Number(t.target_ms) || 0); pct = tg ? Math.min(100, (el / tg) * 100) : 0; }
+  else if (mode === "pomodoro" || mode === "routine") { const v = parseFloat($("#timer-ring").style.getPropertyValue("--pct")); pct = Number.isFinite(v) ? v : 0; } // mismo valor que pinta el anillo de la página Tiempo
+  show(bar, pct != null);
+  if (pct != null) { bar.firstElementChild.style.width = pct + "%"; bar.setAttribute("aria-valuenow", String(Math.round(pct))); }
+  const presets = $("#dbTimerPresets");
+  show(presets, mode === "timer" && idle);
+  if (mode === "timer") $$("#dbTimerPresets button").forEach((b) => b.classList.toggle("on", Number(b.dataset.min) * 60000 === (Number(t.target_ms) || 0)));
+  const start = $("#timer-start");
+  $("#dbTimerStart").disabled = start.disabled;
+  $("#dbTimerStart span").textContent = el > 0 ? "Reanudar" : "Iniciar";
+  $("#dbTimerPause").disabled = $("#timer-pause").disabled;
+  $("#dbTimerFinish").disabled = $("#timer-finish").disabled;
+}
+
+$("#dbTimerStart").addEventListener("click", () => $("#timer-start").click());
+$("#dbTimerPause").addEventListener("click", () => $("#timer-pause").click());
+$("#dbTimerFinish").addEventListener("click", () => $("#timer-finish").click());
+$("#dbTimerPresets").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) applyCountdown(Number(b.dataset.min) * 60000); });
+$("#dbTimerMinus").addEventListener("click", () => applyCountdown(Math.max(60000, targetMs() - 5 * 60000)));
+$("#dbTimerPlus").addEventListener("click", () => applyCountdown(targetMs() + 5 * 60000));
+$("#dbTimer .db-timer-modes").addEventListener("click", (e) => { const b = e.target.closest(".db-tm"); if (b) switchMode(b.dataset.mode).then(syncDashTimer); });
+setInterval(() => { if (!document.hidden && currentPage === "dashboard") syncDashTimer(); }, 400);
+
+renderers.push(applyDashLayout, syncDashTimer);

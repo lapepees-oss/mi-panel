@@ -107,11 +107,11 @@ function askChoice({ title, text = "", options = [] } = {}) {
 //           quick: [{label, value}] (atajos para fechas) }]
 // onSubmit(values) → Promise<boolean|string>  (false o texto = error; true = guardado)
 
-function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage = "Guardado.", onSubmit, earlyAfter = null }) {
+function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage = "Guardado.", onSubmit, earlyAfter = null, startAt = null }) {
   const dlg = uiShell("ui-wizard");
   const values = { ...initial };
   const active = () => steps.filter((s) => !s.when || s.when(values));
-  let idx = 0; // idx === active().length → pantalla de confirmación
+  let idx = Math.max(0, steps.findIndex((s) => s.key === startAt)); // idx === active().length → pantalla de confirmación
   let busy = false;
   let dir = 1;
 
@@ -175,6 +175,21 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
       }
       return wrap;
     }
+    if (s.type === "emoji") {
+      // Emojis sugeridos + campo libre para escribir/pegar cualquier otro (teclado de emojis del móvil o del sistema)
+      const wrap = h("div", { class: "wiz-emojis" });
+      const grid = h("div", { class: "wiz-emoji-grid", role: "radiogroup", "aria-label": s.label });
+      const input = h("input", { id, class: "wiz-input wiz-emoji-input", maxlength: 12, placeholder: "Otro emoji…", "aria-label": "Escribir otro emoji", autocomplete: "off", value: values[s.key] || "" });
+      const sync = () => grid.querySelectorAll(".wiz-emoji").forEach((b) => { const m = b.dataset.v === values[s.key]; b.classList.toggle("on", m); b.setAttribute("aria-checked", String(m)); });
+      for (const e of optionsOf(s)) {
+        grid.append(h("button", { type: "button", class: "wiz-emoji", role: "radio", "data-v": e, "aria-label": e, text: e, "aria-checked": String(values[s.key] === e),
+          onclick: () => { set(e); input.value = e; sync(); } }));
+      }
+      input.oninput = () => { set(input.value.trim()); sync(); };
+      wrap.append(grid, input);
+      sync();
+      return wrap;
+    }
     if (s.type === "textarea") {
       return h("textarea", { id, class: "wiz-input", rows: 3, maxlength: s.maxLength || 500, placeholder: s.placeholder || "", "aria-label": s.label, value: values[s.key] || "",
         oninput: (e) => set(e.target.value) });
@@ -222,7 +237,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     next.textContent = "Continuar";
     const canEarly = earlyAfter != null && idx >= earlyAfter && idx < list.length - 1 && list.slice(0, idx + 1).every((x) => !checkStep(x));
     show(early, canEarly);
-    const el = body.querySelector("input, textarea, .wiz-chip.on, .wiz-color.on, .wiz-chip, .wiz-color");
+    const el = body.querySelector("input, textarea, .wiz-chip.on, .wiz-color.on, .wiz-emoji.on, .wiz-chip, .wiz-color, .wiz-emoji");
     if (el) el.focus();
   }
 
@@ -231,7 +246,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     const list = active();
     if (idx < list.length) {
       const problem = checkStep(list[idx]);
-      if (problem) { err.textContent = problem; const el = body.querySelector("input, textarea, .wiz-chip, .wiz-color"); if (el) el.focus(); return; }
+      if (problem) { err.textContent = problem; const el = body.querySelector("input, textarea, .wiz-chip, .wiz-color, .wiz-emoji"); if (el) el.focus(); return; }
       dir = 1;
       idx += 1;
       render();

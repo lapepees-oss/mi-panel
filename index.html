@@ -218,46 +218,71 @@
             <button type="button" class="primary-btn" id="dbNewTask">+ Nueva tarea</button>
             <button type="button" class="secondary" id="dbNewHabit">+ Nuevo hábito</button>
             <button type="button" class="secondary" id="dbNewNote">✎ Escribir nota</button>
+            <button type="button" class="secondary" id="dbCustomize" aria-pressed="false">⚙ Personalizar</button>
           </div>
         </header>
 
-        <section class="db-metrics" aria-label="Métricas">
-          <a class="db-metric" href="#/tasks"><span class="db-ico"><svg class="ico"><use href="#i-task"/></svg></span><div><small>Tareas pendientes</small><strong id="dbTasks">0</strong><em id="dbTasksFoot"></em></div></a>
-          <a class="db-metric" href="#/habits"><span class="db-ico mint"><svg class="ico"><use href="#i-habit"/></svg></span><div><small>Hábitos de hoy</small><strong id="dbHabits">0/0</strong><em id="dbHabitsFoot"></em></div></a>
-          <a class="db-metric" href="#/habits"><span class="db-ico peach"><svg class="ico"><use href="#i-target"/></svg></span><div><small>Objetivos semanales</small><strong id="dbWeekGoal">—</strong><em id="dbWeekGoalFoot"></em></div></a>
-          <a class="db-metric" href="#/finance"><span class="db-ico"><svg class="ico"><use href="#i-wallet"/></svg></span><div><small>Balance mensual</small><strong id="dbBalance">0,00 €</strong><em id="dbBalanceFoot"></em></div></a>
+        <div class="db-editbar hidden" id="dbEditBar" role="region" aria-label="Personalizar el resumen">
+          <p><strong>Personaliza tu Resumen.</strong> Sube, baja u oculta cada bloque; se guarda en este dispositivo.</p>
+          <div><button type="button" class="secondary small" id="dbLayoutReset">Restablecer</button> <button type="button" class="primary-btn small" id="dbLayoutDone">Listo</button></div>
+        </div>
+        <div class="db-board" id="dbBoard">
+        <div class="db-widget" data-widget="metrics" data-title="Métricas" data-span="full">
+  <section class="db-metrics" aria-label="Métricas">
+            <a class="db-metric" href="#/tasks"><span class="db-ico"><svg class="ico"><use href="#i-task"/></svg></span><div><small>Tareas pendientes</small><strong id="dbTasks">0</strong><em id="dbTasksFoot"></em></div></a>
+            <a class="db-metric" href="#/habits"><span class="db-ico mint"><svg class="ico"><use href="#i-habit"/></svg></span><div><small>Hábitos de hoy</small><strong id="dbHabits">0/0</strong><em id="dbHabitsFoot"></em></div></a>
+            <a class="db-metric" href="#/habits"><span class="db-ico peach"><svg class="ico"><use href="#i-target"/></svg></span><div><small>Objetivos semanales</small><strong id="dbWeekGoal">—</strong><em id="dbWeekGoalFoot"></em></div></a>
+            <a class="db-metric" href="#/finance"><span class="db-ico"><svg class="ico"><use href="#i-wallet"/></svg></span><div><small>Balance mensual</small><strong id="dbBalance">0,00 €</strong><em id="dbBalanceFoot"></em></div></a>
+          </section>
+        </div>
+        <section class="db-widget panel" data-widget="timer" data-title="Cronómetro y temporizador" data-span="half" aria-label="Cronómetro y temporizador">
+          <div class="panel-head"><div><h3>Tiempo</h3><p id="dbTimerMode">Cronómetro</p></div><a class="link-button" href="#/timer">Abrir ↗</a></div>
+          <div class="db-timer" id="dbTimer">
+            <div class="db-timer-modes" role="group" aria-label="Modo">
+              <button type="button" class="db-tm" data-mode="stopwatch">Cronómetro</button>
+              <button type="button" class="db-tm" data-mode="timer">Temporizador</button>
+              <button type="button" class="db-tm" data-mode="pomodoro">Pomodoro</button>
+            </div>
+            <div class="db-timer-clock" id="dbTimerClock" role="timer" aria-live="off">00:00:00</div>
+            <div class="db-timer-bar hidden" id="dbTimerBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso"><span></span></div>
+            <p class="muted db-timer-note" id="dbTimerNote"></p>
+            <div class="db-timer-presets hidden" id="dbTimerPresets" role="group" aria-label="Duraciones rápidas">
+              <button type="button" data-min="5">5 min</button><button type="button" data-min="15">15 min</button><button type="button" data-min="25">25 min</button><button type="button" data-min="45">45 min</button><button type="button" data-min="60">1 h</button>
+            </div>
+            <div class="db-timer-adjust hidden" id="dbTimerAdjust">
+              <button type="button" class="secondary small" id="dbTimerMinus" aria-label="Quitar 5 minutos">−5 min</button>
+              <button type="button" class="secondary small" id="dbTimerPlus" aria-label="Añadir 5 minutos">+5 min</button>
+            </div>
+            <div class="db-timer-actions">
+              <button type="button" class="primary-btn" id="dbTimerStart"><svg class="ico"><use href="#i-play"/></svg><span>Iniciar</span></button>
+              <button type="button" class="secondary" id="dbTimerPause"><svg class="ico"><use href="#i-pause"/></svg>Pausar</button>
+              <button type="button" class="secondary" id="dbTimerFinish"><svg class="ico"><use href="#i-stop"/></svg>Finalizar</button>
+            </div>
+          </div>
         </section>
-
-        <div class="db-grid wide-left">
-          <section class="panel">
+          <section class="db-widget panel" data-widget="tasks" data-title="Próximas tareas" data-span="half">
+            <div class="panel-head"><div><h3>Próximas tareas</h3><p>Vencidas, de hoy y próximas.</p></div><a class="link-button" href="#/tasks">Ver todo ↗</a></div>
+            <ul class="list task-quick task-cards" id="dashTasks"></ul>
+          </section>
+          <section class="db-widget panel" data-widget="heat" data-title="Mapa de constancia" data-span="full">
             <div class="panel-head"><div><h3>Mapa de constancia</h3><p>Una fila por hábito · últimos 35 días</p></div><span class="pill" id="heatmapCaption"></span></div>
             <div class="db-heat-scroll"><div id="dbHeat" class="db-heat" role="img" aria-label="Mapa de constancia por hábito"></div></div>
             <div class="db-legend"><span><i class="done"></i> Cumplido</span><span><i class="miss"></i> No cumplido</span><span><i class="na"></i> Sin registro / no tocaba</span></div>
             <p class="empty-state hidden" id="dbHeatEmpty">Crea un hábito para ver tu constancia.</p>
           </section>
-          <section class="panel">
+          <section class="db-widget panel" data-widget="week" data-title="Resumen semanal" data-span="half">
             <div class="panel-head"><div><h3>Resumen semanal</h3><p>Hábitos de esta semana</p></div></div>
             <div class="weekly-card">
               <div class="ring" id="progressRing" role="img" aria-label="Cumplimiento semanal"><strong id="progressPct">0%</strong></div>
               <div class="weekly-copy"><strong id="progressTitle"></strong><p id="progressText"></p></div>
             </div>
           </section>
-        </div>
-
-        <div class="db-grid">
-          <section class="panel">
-            <div class="panel-head"><div><h3>Próximas tareas</h3><p>Vencidas, de hoy y próximas.</p></div><a class="link-button" href="#/tasks">Ver todo ↗</a></div>
-            <ul class="list task-quick task-cards" id="dashTasks"></ul>
-          </section>
-          <section class="panel">
+          <section class="db-widget panel" data-widget="activity" data-title="Actividad semanal" data-span="half">
             <div class="panel-head"><div><h3>Actividad semanal</h3><p>Hábitos marcados y tareas completadas</p></div></div>
             <div id="weeklyChart" class="weekly-chart" role="img" aria-label="Actividad de esta semana"></div>
             <p class="empty-state hidden" id="weeklyEmpty">Todavía no hay actividad esta semana.</p>
           </section>
-        </div>
-
-        <div class="db-grid">
-          <section class="panel">
+          <section class="db-widget panel" data-widget="finance" data-title="Finanzas del mes" data-span="half">
             <div class="panel-head"><div><h3>Finanzas del mes</h3><p id="dashMonthLabel"></p></div><a class="link-button" href="#/finance">Abrir finanzas ↗</a></div>
             <div class="db-fin">
               <div><small>Ingresos</small><strong id="dashIncome">0,00 €</strong></div>
@@ -266,18 +291,17 @@
             </div>
             <p class="muted" id="dashBudgetFoot"></p>
           </section>
-          <section class="panel db-quote">
+          <section class="db-widget panel db-quote" data-widget="quote" data-title="Filosofía del día" data-span="half">
             <div class="panel-head"><div><h3>Filosofía del día</h3></div><button type="button" class="link-button" id="dbQuoteHistory">Ver historial</button></div>
             <blockquote id="dbQuote"></blockquote>
             <small id="dbQuoteBy"></small>
           </section>
-        </div>
-
-        <section class="panel journal" style="margin-top:14px">
+        <section class="db-widget panel journal" data-widget="note" data-title="Nota rápida" data-span="full">
           <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">✧</div><div><strong>Nota rápida de hoy</strong><small>Se guarda sola, en tu cuenta</small></div></div>
           <textarea id="quickJournal" data-journal="quick" data-follow="today" placeholder="Hoy me gustaría recordar que…" aria-label="Nota rápida de hoy"></textarea>
           <div class="journal-footer"><small id="quickSaveStatus" class="save-indicator"></small><small id="quickWords"></small></div>
         </section>
+        </div>
       </section>
 
       <!-- HÁBITOS -->
@@ -380,7 +404,9 @@
               <ul id="task-done-list" class="list task-cards"></ul>
             </details>
           </div>
-          <div id="task-board" class="board hidden"></div>
+          <div id="board-tabs-slot" class="hidden"></div>
+          <div id="task-board" class="board hidden" role="group"></div>
+          <p id="board-live" class="sr-only" role="status" aria-live="polite"></p>
           <div id="task-empty" class="task-empty hidden">
             <div class="empty-cloud" aria-hidden="true"><svg class="ico"><use href="#i-cloud"/></svg></div>
             <p id="task-empty-text"></p>
@@ -509,6 +535,13 @@
             <ul class="fin-repeat" id="finRepeat"></ul>
           </section>
         </div>
+
+        <section class="panel" id="subsPanel">
+          <div class="panel-head"><div><h3>Suscripciones</h3><p id="subsCaption">Lo que pagas de forma recurrente.</p></div>
+            <button class="primary-btn" type="button" id="addSub">+ Nueva suscripción</button></div>
+          <div class="subs-summary" id="subsSummary"></div>
+          <ul class="subs-list" id="subsList"></ul>
+        </section>
 
         <section class="panel finance-history">
           <div class="panel-head">

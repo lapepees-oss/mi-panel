@@ -17,6 +17,7 @@ const GUEST_DEFAULTS = {
   tasks: { prio: 4, status: "todo", done: false, tags: [], notes: "", recurrence: null, list_id: null, due_date: null, completed_at: null },
   habits: { emoji: "🌱", hint: "", category: "Personal", frequency: "Diario", color: "#8064ff" },
   savings_goals: { current: 0 },
+  subscriptions: { cycle: "monthly", category: "Suscripciones", status: "active", next_charge: null, started_on: null, ended_on: null, notes: "" },
   timer: { running: false, started_at: null, accumulated_ms: 0, mode: "stopwatch", routine_id: null, label: "", target_ms: 0 },
   timer_sessions: { label: "", kind: null },
   routines: { cycles: 1 },
@@ -36,10 +37,12 @@ function guestSeed() {
   const now = new Date().toISOString();
   const row = (extra) => ({ id: guestUuid(), user_id: GUEST_ID, created_at: now, ...extra });
   const list = row({ name: "Universidad" });
+  // Los hábitos de ejemplo tienen registros de las últimas semanas: se crean "hace 30 días" para que su historia sea coherente
+  const old = new Date(Date.now() - 30 * 86400000).toISOString();
   const habits = [
-    row({ name: "Leer 20 minutos", emoji: "📖", hint: "Antes de dormir", category: "Aprendizaje", color: "#4f80ff" }),
-    row({ name: "Entrenar", emoji: "🏃", hint: "", category: "Salud", color: "#35c99a" }),
-    row({ name: "Meditar 5 minutos", emoji: "🧘", hint: "", category: "Bienestar", frequency: "Entre semana", color: "#21b7ce" }),
+    row({ name: "Leer 20 minutos", emoji: "📖", hint: "Antes de dormir", category: "Aprendizaje", color: "#4f80ff", created_at: old }),
+    row({ name: "Entrenar", emoji: "🏃", hint: "", category: "Salud", color: "#35c99a", created_at: old }),
+    row({ name: "Meditar 5 minutos", emoji: "🧘", hint: "", category: "Bienestar", frequency: "Entre semana", color: "#21b7ce", created_at: old }),
   ];
   const logs = [];
   habits.forEach((hb, i) => {
@@ -52,6 +55,8 @@ function guestSeed() {
     task("Preparar el examen del viernes", { due_date: d(3), prio: 2, list_id: list.id }),
     task("Llamar al dentista", { due_date: today, prio: 3 }),
     task("Ordenar el escritorio"),
+    task("Revisar el borrador del informe", { status: "review", prio: 3 }),
+    task("Practicar SQL con ejercicios", { status: "doing", prio: 3 }),
     task("Enviar el currículum", { status: "done", done: true, completed_at: now, due_date: d(-2) }),
   ];
   const tx = (type, amount, title, category, n) => row({ type, amount, title, category, tx_date: d(n) });
@@ -65,6 +70,10 @@ function guestSeed() {
     budgets: [row({ category: "", amount: 400 }), row({ category: "Ocio", amount: 50 })],
     savings_goals: [row({ name: "Portátil nuevo", target: 900, current: 320 })],
     ideas: [],
+    subscriptions: [
+      row({ ...GUEST_DEFAULTS.subscriptions, name: "Música en streaming", amount: 10.99, next_charge: d(5), started_on: d(-60) }),
+      row({ ...GUEST_DEFAULTS.subscriptions, name: "Almacenamiento en la nube", amount: 24, cycle: "yearly", next_charge: d(120), started_on: d(-200) }),
+    ],
     timer: [], timer_sessions: [], routines: [], routine_steps: [],
   };
 }

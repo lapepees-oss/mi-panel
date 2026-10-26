@@ -1,5 +1,5 @@
 "use strict";
-// Arranque: sesión, rutas protegidas, tiempo real y navegación.
+// Arranque: sesión, rutas protegidas, tiempo real (por tabla) y navegación.
 // El acceso (formulario, Google, recuperación) está en auth.js; las secciones, en sus propios archivos.
 
 const PAGE_NAMES = {
@@ -112,11 +112,11 @@ async function init() {
   }
   realDb = createDb();
   if (isGuest()) {
-    db = createGuestDb();
+    db = trackWrites(createGuestDb());
     await onSession(guestSession());
     return;
   }
-  db = realDb;
+  db = trackWrites(realDb);
   // Nunca se espera a Supabase dentro de este callback (puede bloquear la librería): se aplaza un ciclo
   db.auth.onAuthStateChange((event, session) => {
     setTimeout(() => {
@@ -129,13 +129,36 @@ async function init() {
   await onSession(data.session);
 }
 
+/* ---------- Seguimiento de escrituras ----------
+ * Envuelve db.from() para anotar qué tablas se modifican (insert/update/upsert/delete). Así, tras una operación solo se
+ * vuelven a leer esas tablas en vez de toda la base de datos, lo que ahorra mucho tráfico de Supabase. */
+function trackWrites(client) {
+  return new Proxy(client, {
+    get(target, key) {
+      if (key === "from") {
+        return (name) => {
+          const q = target.from(name);
+          for (const m of ["insert", "update", "upsert", "delete"]) {
+            const fn = q[m];
+            q[m] = (...args) => { writtenTables.add(name); return fn.apply(q, args); };
+          }
+          return q;
+        };
+      }
+      const v = target[key];
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  });
+}
+
 /* ---------- Tiempo real ---------- */
 
 function startRealtime() {
   stopRealtime();
   channel = db
     .channel("cambios")
-    .on("postgres_changes", { event: "*", schema: "public" }, scheduleReload)
+    // Cada aviso trae el nombre de la tabla: solo se relee esa (y sus dependientes), no toda la base de datos
+    .on("postgres_changes", { event: "*", schema: "public" }, (payload) => scheduleReload(payload && payload.table ? [payload.table] : null))
     .subscribe((status) => setSync(status === "SUBSCRIBED"));
 }
 
@@ -148,7 +171,7 @@ function stopRealtime() {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && user) {
     checkNewDay();
-    loadAll();
+    if (needsFullReload()) loadAll(); // si se acaba de cargar todo hace menos de un minuto, no se vuelve a descargar
   }
 });
 window.addEventListener("online", () => user && loadAll());
