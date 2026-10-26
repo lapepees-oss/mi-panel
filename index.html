@@ -210,10 +210,11 @@
       <!-- RESUMEN -->
       <section class="page" id="page-dashboard" aria-labelledby="h-dashboard">
         <header class="db-hero">
-          <div>
-            <h1 id="h-dashboard"><span id="dbGreeting">Hola</span><span id="dbName"></span></h1>
+          <!-- Frase del día: sustituye al saludo. El <h1> es la propia frase (el título accesible de la página) -->
+          <div class="db-phrase" id="dbPhrase">
+            <h1 id="h-dashboard"><span id="dbPhraseText"></span></h1>
+            <p class="db-phrase-note" id="dbPhraseNote"></p>
             <p class="db-date" id="dbDate"></p>
-            <p class="db-welcome" id="dbWelcome"></p>
           </div>
           <div class="db-actions" aria-label="Acciones rápidas">
             <button type="button" class="primary-btn" id="dbNewTask">+ Nueva tarea</button>
@@ -225,6 +226,15 @@
 
         <div class="db-editbar hidden" id="dbEditBar" role="region" aria-label="Personalizar el resumen">
           <p><strong>Personaliza tu Resumen.</strong> Sube, baja u oculta cada bloque; se guarda en este dispositivo.</p>
+          <div class="db-show" id="dbShowRow" role="group" aria-label="Qué mostrar en el Resumen"></div>
+          <fieldset class="db-phrase-set" id="dbPhraseSet" aria-label="Frase del día">
+            <legend>Frase del día</legend>
+            <label class="chk"><input type="checkbox" id="phShow"> Mostrar</label>
+            <label>Estilo <select id="phStyle"><option value="mixto">Mixto</option><option value="filosofico">Filosófico</option><option value="motivacional">Motivacional</option><option value="reflexivo">Reflexivo</option></select></label>
+            <label>Interpretación <select id="phLen"><option value="corta">Corta</option><option value="larga">Larga</option><option value="ninguna">Sin interpretación</option></select></label>
+            <label class="chk"><input type="checkbox" id="phDate"> Fecha</label>
+            <label class="chk"><input type="checkbox" id="phAccent"> Acento de color</label>
+          </fieldset>
           <div><button type="button" class="secondary small" id="dbLayoutReset">Restablecer</button> <button type="button" class="primary-btn small" id="dbLayoutDone">Listo</button></div>
         </div>
         <div class="db-board" id="dbBoard">
@@ -236,32 +246,33 @@
             <a class="db-metric" href="#/finance"><span class="db-ico"><svg class="ico"><use href="#i-wallet"/></svg></span><div><small>Balance mensual</small><strong id="dbBalance">0,00 €</strong><em id="dbBalanceFoot"></em></div></a>
           </section>
         </div>
-        <section class="db-widget panel" data-widget="timer" data-title="Cronómetro y temporizador" data-span="half" aria-label="Cronómetro y temporizador">
-          <div class="panel-head"><div><h3>Tiempo</h3><p id="dbTimerMode">Cronómetro</p></div><a class="link-button" href="#/timer">Abrir ↗</a></div>
+        <section class="db-widget panel db-timerbar" data-widget="timer" data-title="Cronómetro y temporizador" data-span="full" aria-label="Cronómetro y temporizador">
+          <!-- Barra compacta de tiempo: usa el MISMO temporizador de la página Tiempo (ver syncDashTimer en dashboard.js) -->
           <div class="db-timer" id="dbTimer">
-            <div class="db-timer-modes" role="group" aria-label="Modo">
+            <svg class="ico db-tb-icon" aria-hidden="true"><use href="#i-timer"/></svg>
+            <div class="db-timer-modes" role="group" aria-label="Tipo de tiempo">
               <button type="button" class="db-tm" data-mode="stopwatch">Cronómetro</button>
               <button type="button" class="db-tm" data-mode="timer">Temporizador</button>
               <button type="button" class="db-tm" data-mode="pomodoro">Pomodoro</button>
             </div>
-            <div class="db-timer-clock" id="dbTimerClock" role="timer" aria-live="off">00:00:00</div>
-            <div class="db-timer-bar hidden" id="dbTimerBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso"><span></span></div>
-            <p class="muted db-timer-note" id="dbTimerNote"></p>
-            <div class="db-timer-presets hidden" id="dbTimerPresets" role="group" aria-label="Duraciones rápidas">
-              <button type="button" data-min="5">5 min</button><button type="button" data-min="15">15 min</button><button type="button" data-min="25">25 min</button><button type="button" data-min="45">45 min</button><button type="button" data-min="60">1 h</button>
+            <!-- − / + suman o restan 1 minuto exacto; solo se ve en modo Temporizador (se pliega con una transición) -->
+            <div class="db-duration is-hidden" id="dbDuration" role="group" aria-label="Ajustar duración del temporizador">
+              <button type="button" class="db-icon-btn" id="dbTimerMinus" aria-label="Restar un minuto">−</button>
+              <span class="db-duration-value" id="dbTimerDuration" aria-live="polite">25 min</span>
+              <button type="button" class="db-icon-btn" id="dbTimerPlus" aria-label="Sumar un minuto">+</button>
             </div>
-            <div class="db-timer-adjust hidden" id="dbTimerAdjust">
-              <button type="button" class="secondary small" id="dbTimerMinus" aria-label="Quitar 5 minutos">−5 min</button>
-              <button type="button" class="secondary small" id="dbTimerPlus" aria-label="Añadir 5 minutos">+5 min</button>
-            </div>
-            <div class="db-timer-actions">
-              <button type="button" class="primary-btn" id="dbTimerStart"><svg class="ico"><use href="#i-play"/></svg><span>Iniciar</span></button>
-              <button type="button" class="secondary" id="dbTimerPause"><svg class="ico"><use href="#i-pause"/></svg>Pausar</button>
-              <button type="button" class="secondary" id="dbTimerFinish"><svg class="ico"><use href="#i-stop"/></svg>Finalizar</button>
+            <button type="button" class="db-start" id="dbTimerStart"><svg class="ico"><use href="#i-play"/></svg><span>Iniciar</span></button>
+            <button type="button" class="db-round" id="dbTimerPause" aria-label="Pausar" title="Pausar"><svg class="ico"><use href="#i-pause"/></svg></button>
+            <button type="button" class="db-round" id="dbTimerFinish" aria-label="Finalizar y guardar la sesión" title="Finalizar y guardar"><svg class="ico"><use href="#i-stop"/></svg></button>
+            <button type="button" class="db-round" id="dbTimerReset" aria-label="Reiniciar" title="Reiniciar"><svg class="ico"><use href="#i-reset"/></svg></button>
+            <span class="db-sep" aria-hidden="true"></span>
+            <div class="db-progress-area">
+              <div class="db-timer-bar" id="dbTimerBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso del tiempo"><span></span></div>
+              <span class="db-readout" id="dbTimerClock" role="timer" aria-live="off">00:00</span>
             </div>
           </div>
         </section>
-          <section class="db-widget panel" data-widget="tasks" data-title="Próximas tareas" data-span="half">
+<section class="db-widget panel" data-widget="tasks" data-title="Próximas tareas" data-span="half">
             <div class="panel-head"><div><h3>Próximas tareas</h3><p>Vencidas, de hoy y próximas.</p></div><a class="link-button" href="#/tasks">Ver todo ↗</a></div>
             <ul class="list task-quick task-cards" id="dashTasks"></ul>
           </section>
@@ -504,21 +515,17 @@
           <article class="fin-card"><div class="fin-ring" id="finBudgetRing" style="--pct:0"><span id="finBudgetPct">—</span></div><div><small>Presupuesto mensual</small><strong id="finBudgetLeft">—</strong><em id="finBudgetFoot">Define un presupuesto abajo</em></div></article>
         </div>
 
+        <!-- Dos columnas apiladas (en vez de dos filas de rejilla): así no quedan huecos vacíos cuando un panel es más alto que su vecino.
+             En móvil las columnas se "disuelven" (display: contents) y el orden vuelve a ser A, B, C, D con la propiedad order. -->
         <div class="fin-grid">
-          <section class="panel">
+          <div class="fin-col">
+          <section class="panel" style="order:1">
             <div class="panel-head"><div><h3>Ingresos y gastos</h3><p>Evolución mes a mes</p></div>
               <div class="row nowrap"><span class="chart-legend"><i></i> Ingresos · <i class="spent"></i> Gastos</span>
                 <select id="finRange" aria-label="Periodo del gráfico"><option value="6">6 meses</option><option value="12">12 meses</option></select></div></div>
             <div id="trendChart" class="trend-chart" role="img" aria-label="Ingresos y gastos"></div>
           </section>
-          <section class="panel">
-            <div class="panel-head"><div><h3>Gastos por categoría</h3><p id="categoryCaption"></p></div><span class="pill" id="finMonthPill"></span></div>
-            <div id="categoryChart" class="category-chart"></div>
-          </section>
-        </div>
-
-        <div class="fin-grid">
-          <section class="panel">
+          <section class="panel" style="order:3">
             <div class="panel-head"><div><h3>Presupuestos</h3><p>Un límite total del mes y, si quieres, uno por categoría.</p></div></div>
             <form id="budgetForm" class="budget-form" novalidate>
               <select id="budgetCategory" aria-label="Presupuesto de"></select>
@@ -528,13 +535,20 @@
             <p class="form-error" id="budgetError" role="alert"></p>
             <div id="budgetList" class="budget-list"></div>
           </section>
-          <section class="panel">
+          </div>
+          <div class="fin-col">
+          <section class="panel" style="order:2">
+            <div class="panel-head"><div><h3>Gastos por categoría</h3><p id="categoryCaption"></p></div><span class="pill" id="finMonthPill"></span></div>
+            <div id="categoryChart" class="category-chart"></div>
+          </section>
+          <section class="panel" style="order:4">
             <div class="panel-head"><div><h3>Resumen rápido</h3><p>Solo con lo que has registrado</p></div></div>
             <ul class="fin-insights" id="finInsights"></ul>
             <h4 class="fin-sub">Gastos que se repiten</h4>
             <p class="muted fin-note">Mismo concepto e importe en meses distintos. Se detecta a partir de tus movimientos.</p>
             <ul class="fin-repeat" id="finRepeat"></ul>
           </section>
+          </div>
         </div>
 
         <section class="panel" id="subsPanel">
@@ -812,6 +826,7 @@
   <script src="config.js"></script>
   <script src="logic.js"></script>
   <script src="quotes.js"></script>
+  <script src="phrases.js"></script>
   <script src="intel.js"></script>
   <script src="core.js"></script>
   <script src="ui.js"></script>

@@ -234,7 +234,7 @@
       }
       return {
         situation: `Pasadas las ${cfg.habits.eveningHour}:00, ${plural(hs.length, "hábito que toca hoy sigue", "hábitos que tocan hoy siguen")} sin marcar.`,
-        data: hs.map((h) => `«${h.name}» (${h.frequency}) · racha actual: ${plural(L.habitStreak(h.frequency, h.days, s.today), "día", "días")}`),
+        data: hs.map((h) => `«${h.name}» (${L.freqLabel(h.frequency)}) · racha actual: ${plural(L.habitStreak(h.frequency, h.days, s.today), "día", "días")}`),
         period: { from: s.today, to: s.today, label: "Hoy" }, patterns,
         hypotheses: ["Puede que ya lo hayas hecho sin registrarlo; el asistente solo ve lo marcado."],
       };

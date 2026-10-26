@@ -111,7 +111,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
   const dlg = uiShell("ui-wizard");
   const values = { ...initial };
   const active = () => steps.filter((s) => !s.when || s.when(values));
-  let idx = Math.max(0, steps.findIndex((s) => s.key === startAt)); // idx === active().length → pantalla de confirmación
+  let idx = Math.max(0, active().findIndex((s) => s.key === startAt)); // se busca entre los pasos activos (los condicionales ocultos no cuentan) // idx === active().length → pantalla de confirmación
   let busy = false;
   let dir = 1;
 
@@ -163,6 +163,17 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
           onclick: () => { set(o.value); wrap.querySelectorAll(".wiz-chip").forEach((b) => { const m = b === btn(o); b.classList.toggle("on", m); b.setAttribute("aria-checked", String(m)); }); } }));
       }
       const btn = (o) => wrap.children[opts.indexOf(o)];
+      return wrap;
+    }
+    if (s.type === "weekdays") {
+      // Días de la semana (0 = lunes … 6 = domingo): botones compactos que se activan/desactivan; el valor es un array de números
+      const wrap = h("div", { class: "wiz-days", role: "group", "aria-label": s.label });
+      const cur = new Set(Array.isArray(values[s.key]) ? values[s.key] : []);
+      (s.options || []).forEach((o) => {
+        const b = h("button", { type: "button", class: "wiz-day", "aria-pressed": String(cur.has(o.value)), "aria-label": o.title || o.label, title: o.title || o.label, text: o.label,
+          onclick: () => { cur.has(o.value) ? cur.delete(o.value) : cur.add(o.value); b.setAttribute("aria-pressed", String(cur.has(o.value))); set([...cur].sort((x, y) => x - y)); } });
+        wrap.append(b);
+      });
       return wrap;
     }
     if (s.type === "color") {
@@ -237,7 +248,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     next.textContent = "Continuar";
     const canEarly = earlyAfter != null && idx >= earlyAfter && idx < list.length - 1 && list.slice(0, idx + 1).every((x) => !checkStep(x));
     show(early, canEarly);
-    const el = body.querySelector("input, textarea, .wiz-chip.on, .wiz-color.on, .wiz-emoji.on, .wiz-chip, .wiz-color, .wiz-emoji");
+    const el = body.querySelector("input, textarea, .wiz-chip.on, .wiz-color.on, .wiz-emoji.on, .wiz-chip, .wiz-color, .wiz-emoji, .wiz-day");
     if (el) el.focus();
   }
 
@@ -246,7 +257,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     const list = active();
     if (idx < list.length) {
       const problem = checkStep(list[idx]);
-      if (problem) { err.textContent = problem; const el = body.querySelector("input, textarea, .wiz-chip, .wiz-color, .wiz-emoji"); if (el) el.focus(); return; }
+      if (problem) { err.textContent = problem; const el = body.querySelector("input, textarea, .wiz-chip, .wiz-color, .wiz-emoji, .wiz-day"); if (el) el.focus(); return; }
       dir = 1;
       idx += 1;
       render();

@@ -724,3 +724,90 @@ test("isOpen: «En revisión» sigue siendo una tarea abierta y solo done cierra
   assert.equal(L.isOpen({ status: "doing" }), true);
   assert.equal(L.isOpen({ status: "done" }), false);
 });
+
+/* ---------- Frecuencia de hábitos por días de la semana ---------- */
+
+test("parseFreq/freqToken: ida y vuelta y compatibilidad con hábitos antiguos", () => {
+  assert.deepEqual(L.parseFreq("Personalizada:4,0,2,2,9"), { kind: "Personalizada", days: [0, 2, 4] });
+  assert.equal(L.freqToken("Personalizada", [4, 0, 2]), "Personalizada:0,2,4");
+  assert.equal(L.freqToken("Diario", [1]), "Diario");
+  assert.equal(L.habitFrequency({}), "Diario"); // hábito antiguo sin frecuencia
+  assert.equal(L.habitFrequency({ frequency: "Semanal" }), "Semanal");
+  assert.equal(L.habitFrequency({ frequency: "algo raro" }), "Diario");
+});
+
+test("habitDueOn: lunes, miércoles y viernes", () => {
+  const f = "Personalizada:0,2,4";
+  // 26 oct 2026 = lunes
+  assert.deepEqual(["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-30", "2026-10-31"].map((k) => L.habitDueOn(f, k)), [true, false, true, true, false]);
+  assert.equal(L.habitDueOn("Entre semana", "2026-10-31"), false);
+  assert.equal(L.habitDueOn("Fines de semana", "2026-10-31"), true);
+  assert.equal(L.habitDueOn("Diario", "2026-10-27"), true);
+});
+
+test("el mapa distingue día no programado (off) de día fallado (miss)", () => {
+  const created = "2026-10-01T10:00:00";
+  const hb = [{ id: "a", created_at: created, frequency: "Personalizada:0,2,4" }];
+  const rows = L.habitHeatRows(hb, new Map([["a", new Set(["2026-10-26"])]]), "2026-10-30", 5); // 26..30
+  const states = rows[0].cells.map((c) => c.state);
+  assert.equal(states[0], "done"); // lun hecho
+  assert.equal(states[1], "off"); // mar no programado
+  assert.equal(states[2], "miss"); // mié programado y no hecho
+  assert.equal(states[3], "off"); // jue no programado
+});
+
+test("completionRate solo cuenta días programados", () => {
+  const days = new Set(["2026-10-26", "2026-10-28"]);
+  const due = (k) => L.habitDueOn("Personalizada:0,2,4", k);
+  const r = L.completionRate(days, "2026-10-30", 5, "2026-10-01", due); // lun, mié, vie programados; vie aún por hacer
+  // Ventana 26..30 oct: programados lun 26, mié 28, vie 30 → 3 ocasiones, 2 hechas (no cuentan mar/jue)
+  assert.deepEqual(r, { done: 2, total: 3, pct: 67 });
+  // Un día hecho fuera de calendario suma como hecho y como ocasión (no hay doble conteo ni porcentajes >100)
+  const extra = L.completionRate(new Set(["2026-10-27"]), "2026-10-30", 5, "2026-10-01", due);
+  assert.equal(extra.done, 1); assert.equal(extra.total, 4);
+});
+
+test("semana y estado de hoy respetan el calendario del hábito", () => {
+  const f = "Personalizada:0,2,4";
+  assert.equal(L.habitStatusToday(f, new Set(), "2026-10-27"), "off"); // martes: no toca
+  assert.equal(L.habitStatusToday(f, new Set(), "2026-10-28"), "pending"); // miércoles: toca
+  assert.deepEqual(L.habitWeekProgress(f, new Set(["2026-10-26", "2026-10-27", "2026-10-28"]), "2026-10-26"), { done: 2, target: 3 });
+  const hb = [{ id: "a", created_at: "2026-09-01T10:00:00", frequency: f }];
+  const by = new Map([["a", new Set(["2026-10-26", "2026-10-28"])]]);
+  assert.deepEqual(L.weekSummary(hb, by, "2026-10-27"), { done: 2, missed: 0, pending: 0, total: 2, pct: 100 }); // el martes no es una ocasión
+});
+
+/* ---------- Frase del día ---------- */
+
+test("phraseOfDay: estable en el día, cambia con la fecha y no repite en la última semana", () => {
+  const pool = Array.from({ length: 36 }, (_, i) => ({ t: "p" + i }));
+  assert.equal(L.phraseOfDay("2026-10-26", pool).t, L.phraseOfDay("2026-10-26", pool).t);
+  assert.notEqual(L.phraseOfDay("2026-10-26", pool).t, L.phraseOfDay("2026-10-27", pool).t);
+  const seen = [];
+  for (let d = 0; d < 800; d++) {
+    const t = L.phraseOfDay(L.addDays("2026-01-01", d), pool).t;
+    assert.ok(!seen.slice(-7).includes(t), "repetida en menos de 7 días: " + t);
+    seen.push(t);
+  }
+  assert.equal(L.phraseOfDay("2026-10-26", []), null);
+  assert.equal(L.phraseOfDay("2026-10-26", [{ t: "única" }]).t, "única");
+});
+
+test("phrasePrefs normaliza ajustes guardados", () => {
+  assert.deepEqual(L.phrasePrefs(null), { show: true, style: "mixto", length: "corta", date: true, accent: true });
+  assert.equal(L.phrasePrefs({ style: "raro", length: "x", show: false }).style, "mixto");
+  assert.equal(L.phrasePrefs({ show: false }).show, false);
+  assert.equal(L.phrasePrefs({ length: "larga" }).length, "larga");
+});
+
+test("la colección de frases es válida y no atribuye citas a nadie", () => {
+  const src = require("fs").readFileSync(__dirname + "/../phrases.js", "utf8");
+  const PHRASES = new Function(src + "; return PHRASES;")();
+  assert.ok(PHRASES.length >= 30);
+  for (const p of PHRASES) {
+    assert.ok(["filosofico", "motivacional", "reflexivo"].includes(p.s));
+    assert.ok(p.t && p.a && p.b && !("by" in p));
+  }
+  for (const s of ["filosofico", "motivacional", "reflexivo"]) assert.ok(PHRASES.filter((p) => p.s === s).length >= 8);
+  assert.equal(new Set(PHRASES.map((p) => p.t)).size, PHRASES.length);
+});

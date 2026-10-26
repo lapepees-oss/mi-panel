@@ -14,8 +14,9 @@ function paintHeat(el, cells, { interactive = false, selected = null } = {}) {
   const today = todayKey();
   el.replaceChildren(
     ...cells.map((c) => {
-      const label = `${Logic.longDate(c.key)}: ${c.count} de ${c.total} ${c.total === 1 ? "hábito" : "hábitos"}`;
-      const cls = `heatmap-cell level-${c.level}` + (c.key === today ? " today-cell" : "") + (c.key === selected ? " selected" : "");
+      // off = ese día no tocaba ningún hábito: se muestra distinto de un día fallado (nivel 0 con hábitos programados)
+      const label = c.off ? `${Logic.longDate(c.key)}: ningún hábito programado` : `${Logic.longDate(c.key)}: ${c.count} de ${c.total} ${c.total === 1 ? "hábito" : "hábitos"}`;
+      const cls = `heatmap-cell level-${c.level}` + (c.off ? " off" : "") + (c.key === today ? " today-cell" : "") + (c.key === selected ? " selected" : "");
       return interactive
         ? h("button", { type: "button", class: cls, title: label, "aria-label": label, onclick: () => pickDay(c.key) })
         : h("div", { class: cls, title: label });
@@ -62,23 +63,32 @@ const defaultHabitEmoji = (cat) => (HABIT_EMOJIS.includes(Logic.HABIT_ICONS[cat]
 
 function openHabitForm(hb = null, startAt = null) {
   const choices = (list) => list.map((v) => ({ value: v, label: v }));
+  const cur = hb ? Logic.parseFreq(Logic.habitFrequency(hb)) : { kind: "Diario", days: [] };
+  // "Una vez por semana" ya no se ofrece para hábitos nuevos, pero se conserva al editar uno que ya lo usa
+  const freqKinds = ["Diario", "Entre semana", "Fines de semana", "Personalizada", ...(cur.kind === "Semanal" ? ["Semanal"] : [])];
   openWizard({
     steps: [
       { key: "name", label: hb ? "Nombre del hábito" : "¿Cómo se llama el hábito?", type: "text", required: true, requiredMessage: "Escribe un nombre para el hábito.", maxLength: 80, summaryLabel: "Hábito", validate: (v) => habitNameProblem(v.trim(), hb && hb.id) },
       { key: "category", label: "Categoría", type: "choice", options: choices(Logic.HABIT_CATEGORIES), summaryLabel: "Categoría" },
-      { key: "frequency", label: "Frecuencia", type: "choice", hint: "Entre semana no cuenta sábados ni domingos; Semanal basta con una vez por semana.", options: choices(Logic.HABIT_FREQUENCIES.filter((f) => f !== "Personalizada")), summaryLabel: "Frecuencia" },
+      // Frecuencia: tipo + (si es personalizada) los días concretos. Se guarda como un único texto (ver Logic.freqToken).
+      { key: "frequency", label: "Frecuencia", type: "choice", hint: "Elige cuándo toca este hábito. Los días que no toca no cuentan como fallo.", summaryLabel: "Frecuencia",
+        options: () => freqKinds.map((k) => ({ value: k, label: Logic.FREQ_LABELS[k] })) },
+      { key: "days", label: "¿Qué días de la semana?", type: "weekdays", hint: "Marca uno o varios. Puedes cambiarlo cuando quieras sin perder tu historial.", summaryLabel: "Días",
+        when: (v) => v.frequency === "Personalizada", required: true, requiredMessage: "Marca al menos un día.",
+        options: Logic.WEEKDAY_SHORT.map((label, value) => ({ value, label, title: Logic.WEEKDAY_FULL[value] })),
+        format: (v) => (Array.isArray(v) && v.length ? v.map((i) => Logic.WEEKDAY_FULL[i]).join(", ") : "—") },
       { key: "emoji", label: "Emoji del hábito", type: "emoji", options: HABIT_EMOJIS, hint: "Elige uno o escribe el tuyo.", required: true, requiredMessage: "Elige o escribe un emoji.", validate: (v) => (habitEmojiOk(v.trim()) ? "" : "Escribe un único emoji (sin letras ni números)."), summaryLabel: "Emoji" },
       { key: "color", label: "Color identificativo", type: "color", options: Logic.HABIT_COLORS.map((c) => ({ value: c, label: Logic.HABIT_COLOR_NAMES[c] })), summaryLabel: "Color" },
     ],
     initial: hb
-      ? { name: hb.name, category: Logic.habitCategory(hb), frequency: Logic.habitFrequency(hb), emoji: hb.emoji || "🌱", color: Logic.habitColor(hb) }
-      : { name: "", category: habitCat !== "Todos" ? habitCat : "Salud", frequency: "Diario", emoji: defaultHabitEmoji(habitCat !== "Todos" ? habitCat : "Salud"), color: Logic.HABIT_COLORS[0] },
+      ? { name: hb.name, category: Logic.habitCategory(hb), frequency: cur.kind, days: cur.days, emoji: hb.emoji || "🌱", color: Logic.habitColor(hb) }
+      : { name: "", category: habitCat !== "Todos" ? habitCat : "Salud", frequency: "Diario", days: [], emoji: defaultHabitEmoji(habitCat !== "Todos" ? habitCat : "Salud"), color: Logic.HABIT_COLORS[0] },
     earlyAfter: 0,
     startAt,
     submitLabel: hb ? "Guardar cambios" : "Crear hábito",
     doneMessage: hb ? "Hábito actualizado." : "Hábito creado. Márcalo hoy si ya lo has hecho.",
     onSubmit: (v) => {
-      const data = { name: v.name.trim(), category: v.category, frequency: v.frequency, emoji: v.emoji.trim(), color: v.color };
+      const data = { name: v.name.trim(), category: v.category, frequency: Logic.freqToken(v.frequency, v.days), emoji: v.emoji.trim(), color: v.color };
       return hb ? updateHabit(hb.id, data) : createHabit(data);
     },
   });
@@ -134,7 +144,7 @@ function habitCard(hb, weekKeys, byHabit, today) {
     "article",
     { class: "hb-card-item", style: `--hc:${color}`, "data-id": hb.id },
     h("div", { class: "hb-top" }, icon,
-      h("div", { class: "hb-info" }, h("strong", { text: hb.name }), h("small", { text: `${Logic.habitCategory(hb)} · ${freq}` })),
+      h("div", { class: "hb-info" }, h("strong", { text: hb.name }), h("small", { text: `${Logic.habitCategory(hb)} · ${Logic.freqLabel(freq)}` })),
       menu),
     h("div", { class: "week" }, week),
     h("div", { class: "hb-streaks" },
@@ -190,7 +200,7 @@ function renderHabitStats(byHabit, today) {
     const freq = Logic.habitFrequency(hb);
     const vals = keys.map((k) => (days.has(k) ? 1 : 0));
     const created = Logic.dayOfTimestamp(hb.created_at);
-    const rate = Logic.completionRate(days, today, 30, created);
+    const rate = Logic.completionRate(days, today, 30, created, (k) => Logic.habitDueOn(freq, k)); // solo cuentan los días programados
     $("#hbChartTitle").textContent = hb.name;
     $("#hbChartSub").textContent = "Últimos 30 días";
     $("#hbChart").innerHTML = svgBars(vals, 1, Logic.habitColor(hb));

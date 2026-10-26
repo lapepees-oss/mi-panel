@@ -225,12 +225,18 @@
   }
 
   // Cumplimiento en los últimos n días (si el hábito es más reciente, solo cuentan sus días)
-  function completionRate(days, today, n = 30, createdDay = null) {
+  // Cumplimiento de los últimos n días. Con isDue(key) solo cuentan los días programados (más los cumplidos fuera
+  // de calendario); sin él, todos los días (comportamiento anterior).
+  function completionRate(days, today, n = 30, createdDay = null, isDue = null) {
     let window = n;
     if (createdDay) window = Math.max(1, Math.min(n, dayDiff(today, createdDay) + 1));
-    let done = 0;
-    for (let i = 0; i < window; i++) if (days.has(addDays(today, -i))) done++;
-    return { done, total: window, pct: Math.round((done / window) * 100) };
+    let done = 0, total = 0;
+    for (let i = 0; i < window; i++) {
+      const key = addDays(today, -i), did = days.has(key);
+      if (did) done++;
+      if (!isDue || did || isDue(key)) total++;
+    }
+    return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
   }
 
   function heatLevel(count, total) {
@@ -248,17 +254,21 @@
     return created || first || null;
   }
 
-  // Un cuadro por día; "total" = hábitos que ya existían ese día
+  // Un cuadro por día. "total" = hábitos que ya existían ese día Y le tocaban (o que se cumplieron igualmente);
+  // un día en el que no tocaba ninguno sale como off = true (no es un incumplimiento). Los hábitos Semanales
+  // no tienen día fijo: cuentan cada día desde que existen, como antes.
   function heatCells(habits, byHabit, today, n = 35) {
     const starts = new Map(habits.map((h) => [h.id, habitStartDay(h, byHabit.get(h.id))]));
+    const freqs = new Map(habits.map((h) => [h.id, habitFrequency(h)]));
     return lastDayKeys(n, today).map((key) => {
       let count = 0, total = 0;
       for (const h of habits) {
         const start = starts.get(h.id);
-        if (byHabit.get(h.id)?.has(key)) count++;
-        if (!start || start <= key) total++;
+        const did = !!byHabit.get(h.id)?.has(key);
+        if (did) count++;
+        if ((!start || start <= key) && (did || habitDueOn(freqs.get(h.id), key))) total++;
       }
-      return { key, count, total, level: heatLevel(count, total) };
+      return { key, count, total, level: heatLevel(count, total), off: habits.length > 0 && total === 0 };
     });
   }
 
@@ -495,18 +505,57 @@
   /* ================= Hábitos: categorías, frecuencia y progreso semanal ================= */
 
   const HABIT_CATEGORIES = ["Salud", "Aprendizaje", "Bienestar", "Productividad", "Personal"];
-  const HABIT_FREQUENCIES = ["Diario", "Entre semana", "Semanal", "Personalizada"];
+  // Frecuencia de un hábito = texto guardado en habits.frequency (sin columnas nuevas, compatible con los hábitos antiguos):
+  //   "Diario" · "Entre semana" (L-V) · "Fines de semana" (S-D) · "Semanal" (1 vez a la semana, cualquier día)
+  //   · "Personalizada:0,2,4" → días concretos, 0 = lunes … 6 = domingo.
+  // Un valor desconocido, vacío o "Personalizada" sin días se trata como "Diario" (así ningún hábito antiguo se rompe).
+  const HABIT_FREQUENCIES = ["Diario", "Entre semana", "Fines de semana", "Semanal", "Personalizada"];
+  const WEEKDAY_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  const WEEKDAY_FULL = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+  const FREQ_LABELS = { Diario: "Todos los días", "Entre semana": "Días laborables", "Fines de semana": "Fines de semana", Semanal: "Una vez por semana", Personalizada: "Días personalizados" };
+  const cleanDays = (list) => [...new Set((list || []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b);
+  // Texto que se guarda para un tipo de frecuencia (y, si es personalizada, sus días). Todos los días marcados = "Diario".
+  function freqToken(kind, days) {
+    if (kind !== "Personalizada") return HABIT_FREQUENCIES.includes(kind) ? kind : "Diario";
+    const d = cleanDays(days);
+    return d.length === 0 || d.length === 7 ? "Diario" : "Personalizada:" + d.join(",");
+  }
+  // Inverso: {kind, days} de un texto guardado (days solo en Personalizada)
+  function parseFreq(freq) {
+    const s = String(freq || "");
+    if (s.startsWith("Personalizada:")) {
+      const d = cleanDays(s.slice(14).split(","));
+      return d.length && d.length < 7 ? { kind: "Personalizada", days: d } : { kind: "Diario", days: [] };
+    }
+    return { kind: ["Entre semana", "Fines de semana", "Semanal"].includes(s) ? s : "Diario", days: [] };
+  }
   const HABIT_COLORS = ["#8064ff", "#4f80ff", "#21b7ce", "#35c99a", "#ffad54", "#ff607e"];
   const HABIT_COLOR_NAMES = { "#8064ff": "Morado", "#4f80ff": "Azul", "#21b7ce": "Cian", "#35c99a": "Verde", "#ffad54": "Naranja", "#ff607e": "Rosa" };
   const HABIT_ICONS = { Salud: "🏋️", Aprendizaje: "📖", Bienestar: "🍃", Productividad: "✅", Personal: "✦" };
   const habitCategory = (h) => (HABIT_CATEGORIES.includes(h.category) ? h.category : "Personal");
-  const habitFrequency = (h) => (HABIT_FREQUENCIES.includes(h.frequency) ? h.frequency : "Diario");
+  // Frecuencia normalizada del hábito (texto estándar); el resto del código la pasa tal cual a habitDueOn, habitStreak…
+  const habitFrequency = (h) => { const p = parseFreq(h && h.frequency); return p.kind === "Personalizada" ? freqToken("Personalizada", p.days) : p.kind; };
+  // Texto legible: «Todos los días», «Días laborables», «Lun · Mié · Vie»…
+  function freqLabel(freq) {
+    const p = parseFreq(freq);
+    return p.kind === "Personalizada" ? p.days.map((i) => WEEKDAY_SHORT[i]).join(" · ") : FREQ_LABELS[p.kind];
+  }
   const habitColor = (h) => (/^#[0-9a-f]{6}$/i.test(h.color || "") ? h.color : HABIT_COLORS[0]);
 
-  // ¿Toca este hábito ese día? (Entre semana: no toca sábado ni domingo)
-  const habitDueOn = (freq, key) => (freq === "Entre semana" ? weekdayIndex(key) <= 4 : true);
-  // Marcas necesarias para cumplir una semana completa
-  const habitWeekTarget = (freq) => (freq === "Entre semana" ? 5 : freq === "Semanal" ? 1 : 7);
+  // ¿Toca este hábito ese día? ÚNICA definición de "día programado": rachas, contadores, semana y mapa la usan.
+  // (Semanal toca "cualquier día": se cumple con una marca en la semana.) Usa la fecha local del día (YYYY-MM-DD).
+  function habitDueOn(freq, key) {
+    const p = parseFreq(freq), wd = weekdayIndex(key);
+    if (p.kind === "Entre semana") return wd <= 4;
+    if (p.kind === "Fines de semana") return wd >= 5;
+    if (p.kind === "Personalizada") return p.days.includes(wd);
+    return true;
+  }
+  // Marcas necesarias para cumplir una semana completa = nº de días programados por semana
+  function habitWeekTarget(freq) {
+    const p = parseFreq(freq);
+    return p.kind === "Entre semana" ? 5 : p.kind === "Fines de semana" ? 2 : p.kind === "Semanal" ? 1 : p.kind === "Personalizada" ? p.days.length : 7;
+  }
 
   // done = cumplido hoy (o, en Semanal, ya cumplido esta semana); off = hoy no toca; pending = falta
   function habitStatusToday(freq, days, today) {
@@ -557,7 +606,8 @@
   // Progreso de una semana (lunes a domingo) de UN hábito: marcas hechas / marcas necesarias
   function habitWeekProgress(freq, days, weekStartKey) {
     const target = habitWeekTarget(freq);
-    const done = weekKeys(weekStartKey).filter((k) => days.has(k)).length;
+    // En Semanal vale cualquier día; en las demás frecuencias solo cuentan las marcas de días programados (una marca en un día libre no tapa un día fallado)
+    const done = weekKeys(weekStartKey).filter((k) => days.has(k) && (freq === "Semanal" || habitDueOn(freq, k))).length;
     return { done: Math.min(done, target), target };
   }
 
@@ -603,7 +653,8 @@
         habit: h,
         cells: keys.map((key) => ({
           key,
-          state: days.has(key) ? "done" : (created && key < created) || !habitDueOn(freq, key) ? "na" : "miss",
+          // done = cumplido · na = aún no existía · off = no estaba programado ese día (no es un fallo) · miss = programado y sin cumplir
+          state: days.has(key) ? "done" : created && key < created ? "na" : !habitDueOn(freq, key) ? "off" : "miss",
         })),
       };
     });
@@ -695,6 +746,72 @@
     const cells = [...Array(lead).fill(null), ...Array.from({ length: days }, (_, i) => `${mk}-${pad(i + 1)}`)];
     while (cells.length % 7) cells.push(null);
     return Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
+  }
+
+  /* ---------- Frase del día (Resumen) ----------
+   * Selección determinista a partir de la fecha: misma frase en todos los dispositivos, al recargar y al volver a iniciar
+   * sesión el mismo día, sin guardar nada. Los días se reparten en "ciclos" del tamaño de la colección; cada ciclo es una
+   * mezcla (con semilla) de TODAS las frases, así no se repite ninguna hasta agotarlas. Entre un ciclo y el siguiente se
+   * evita que las primeras frases coincidan con las últimas del ciclo anterior (no se repite nada de la última semana). */
+  const PHRASE_STYLES = ["mixto", "filosofico", "motivacional", "reflexivo"];
+  const PHRASE_LENGTHS = ["corta", "larga", "ninguna"];
+  const PHRASE_DEFAULTS = { show: true, style: "mixto", length: "corta", date: true, accent: true };
+
+  // Normaliza lo guardado en el navegador: valores desconocidos vuelven al predeterminado
+  function phrasePrefs(saved) {
+    const s = saved && typeof saved === "object" ? saved : {};
+    return {
+      show: s.show !== false,
+      style: PHRASE_STYLES.includes(s.style) ? s.style : PHRASE_DEFAULTS.style,
+      length: PHRASE_LENGTHS.includes(s.length) ? s.length : PHRASE_DEFAULTS.length,
+      date: s.date !== false,
+      accent: s.accent !== false,
+    };
+  }
+
+  // Generador pseudoaleatorio con semilla (mulberry32): mismo resultado siempre para la misma semilla
+  function seededRandom(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const phraseOrderCache = new Map();
+  // Orden de los índices 0..size-1 en el ciclo c (memoizado). Parte de una mezcla con semilla y recoloca al final
+  // cualquier índice de las primeras posiciones que coincida con las últimas `avoid` del ciclo anterior.
+  function phraseCycle(c, size, avoid) {
+    const memo = `${size}:${avoid}`;
+    let list = phraseOrderCache.get(memo);
+    if (!list) phraseOrderCache.set(memo, (list = []));
+    while (list.length <= c) {
+      const n = list.length, rnd = seededRandom(n * 2654435761 + size * 97 + 12345);
+      const ord = Array.from({ length: size }, (_, i) => i);
+      for (let i = size - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [ord[i], ord[j]] = [ord[j], ord[i]]; }
+      if (n > 0) {
+        const recent = new Set(list[n - 1].slice(size - avoid));
+        // las primeras `avoid` posiciones se llenan con frases que NO estén entre las recientes; el resto conserva el orden de la mezcla
+        const head = ord.filter((i) => !recent.has(i)).slice(0, avoid), used = new Set(head);
+        const rest = ord.filter((i) => !used.has(i));
+        ord.length = 0;
+        ord.push(...head, ...rest);
+      }
+      list.push(ord);
+    }
+    return list[c];
+  }
+
+  // pool = lista de frases ya filtrada por estilo. Devuelve la frase de ese día (o null si la lista está vacía).
+  function phraseOfDay(key, pool, avoid = 7) {
+    if (!pool || !pool.length) return null;
+    const size = pool.length, a = Math.min(avoid, Math.floor(size / 2));
+    const n = Math.floor(Date.UTC(...key.split("-").map((v, i) => (i === 1 ? Number(v) - 1 : Number(v)))) / 86400000);
+    const idx = ((n % size) + size) % size, cycle = Math.max(0, Math.floor(n / size));
+    return pool[phraseCycle(cycle, size, a)[idx]];
   }
 
   const greeting = (hour) => (hour < 6 ? "Buenas noches" : hour < 13 ? "Buenos días" : hour < 21 ? "Buenas tardes" : "Buenas noches");
@@ -968,9 +1085,9 @@
     addInterval, nextOccurrence, normalizeTags, wordCount,
     SESSION_KINDS, sessionKindLabel, formatDuration, sessionStats, pctChange, countdownMs, splitHms,
     SUB_CYCLES, SUB_STATUS, subCycle, subStatus, subYearlyCents, subMonthlyCents, addMonthsToDay, addCycle, nextCharge, subSummary,
-    DASH_WIDGETS, dashLayout, moveWidget, habitStartDay, HABIT_CATEGORIES, HABIT_FREQUENCIES, HABIT_COLORS, HABIT_COLOR_NAMES, HABIT_ICONS, habitCategory, habitFrequency, habitColor,
+    DASH_WIDGETS, dashLayout, moveWidget, habitStartDay, HABIT_CATEGORIES, HABIT_FREQUENCIES, WEEKDAY_SHORT, WEEKDAY_FULL, FREQ_LABELS, freqToken, parseFreq, freqLabel, HABIT_COLORS, HABIT_COLOR_NAMES, HABIT_ICONS, habitCategory, habitFrequency, habitColor,
     habitDueOn, habitWeekTarget, habitStatusToday, habitStreak, habitBestStreak, habitWeekProgress, weekSummary, habitHeatRows,
-    monthGrid, greeting, tagCounts,
+    monthGrid, greeting, tagCounts, PHRASE_STYLES, PHRASE_LENGTHS, PHRASE_DEFAULTS, phrasePrefs, phraseOfDay,
     timerPhase, clock, csvText, buildTransactionsCsv, buildBackup, legacyFromStorage, parseCloudspaceBackup, planImport,
     EMAIL_RE, MIN_PASSWORD, validateAuth, authErrorText, dataErrorText,
   };

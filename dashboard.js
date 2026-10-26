@@ -1,27 +1,49 @@
 "use strict";
-// Resumen: saludo, métricas, mapa de constancia por hábito, resumen semanal, próximas tareas, actividad, finanzas y nota rápida.
+// Resumen: frase del día, métricas, mapa de constancia por hábito, resumen semanal, próximas tareas, actividad, finanzas y nota rápida.
 // Los bloques se pueden ocultar y reordenar (diseño guardado en este navegador) y hay un cronómetro integrado
 // que usa el mismo temporizador que la página Tiempo. No guarda datos propios: lee state (la misma fuente que Hábitos, Tareas, Diario y Finanzas).
 
-function displayName() {
-  if (!user) return "";
-  if (user.guest) return "";
-  const m = user.user_metadata || {};
-  const n = m.full_name || m.name || m.display_name || (user.email ? user.email.split("@")[0] : "");
-  return n ? n.charAt(0).toUpperCase() + n.slice(1) : "";
+/* ---------- Frase del día (sustituye al saludo) ----------
+ * La frase depende solo de la fecha local (Logic.phraseOfDay): no se guarda nada, así que no cambia al recargar ni al
+ * volver a entrar el mismo día y es igual en todos tus dispositivos. Los ajustes viven en este navegador. */
+const phrasePrefsNow = () => Logic.phrasePrefs(store.get("phrase", null));
+let phraseKey = ""; // lo último pintado: si no cambia, no se toca el DOM
+
+function renderPhrase(today) {
+  const p = phrasePrefsNow(), box = $("#dbPhrase");
+  show(box, p.show); // oculto = desaparece del flujo y el resto sube, sin hueco
+  const pool = PHRASES.filter((x) => p.style === "mixto" || x.s === p.style);
+  const ph = Logic.phraseOfDay(today, pool.length ? pool : PHRASES);
+  const sig = JSON.stringify([today, p, ph && ph.t]);
+  if (sig === phraseKey) return;
+  phraseKey = sig;
+  box.classList.toggle("plain", !p.accent);
+  $("#dbPhraseText").textContent = ph ? ph.t : "Hoy, un paso pequeño también cuenta.";
+  const note = ph ? (p.length === "ninguna" ? "" : p.length === "larga" ? `${ph.a} ${ph.b}` : ph.a) : "";
+  $("#dbPhraseNote").textContent = note;
+  show($("#dbPhraseNote"), !!note);
+  const ld = Logic.longDate(today);
+  $("#dbDate").textContent = ld.charAt(0).toUpperCase() + ld.slice(1);
+  show($("#dbDate"), p.date);
 }
+
+function syncPhraseControls() {
+  const p = phrasePrefsNow();
+  $("#phShow").checked = p.show; $("#phStyle").value = p.style; $("#phLen").value = p.length;
+  $("#phDate").checked = p.date; $("#phAccent").checked = p.accent;
+}
+function savePhrase() {
+  store.set("phrase", { show: $("#phShow").checked, style: $("#phStyle").value, length: $("#phLen").value, date: $("#phDate").checked, accent: $("#phAccent").checked });
+  renderPhrase(todayKey());
+}
+["phShow", "phStyle", "phLen", "phDate", "phAccent"].forEach((id) => $("#" + id).addEventListener("change", savePhrase));
 
 function renderDashboard() {
   const today = todayKey();
   const byHabit = habitDays();
-  const name = displayName();
 
   /* Cabecera */
-  $("#dbGreeting").textContent = Logic.greeting(new Date().getHours());
-  $("#dbName").textContent = name ? ", " + name : "";
-  const ld = Logic.longDate(today);
-  $("#dbDate").textContent = ld.charAt(0).toUpperCase() + ld.slice(1);
-  $("#dbWelcome").textContent = "Bienvenido a tu espacio. Elige un paso pequeño y empieza por ahí.";
+  renderPhrase(today);
 
   /* Métricas */
   const open = state.tasks.filter((t) => Logic.isOpen(t));
@@ -58,7 +80,7 @@ function renderDashboard() {
       h("span", { class: "db-heat-name", title: r.habit.name, text: `${r.habit.emoji || "🌱"} ${r.habit.name}` }),
       h("div", { class: "db-heat-cells", style: `--hc:${Logic.habitColor(r.habit)}` },
         ...r.cells.map((c) => {
-          const label = `${r.habit.name}, ${Logic.longDate(c.key)}: ${c.state === "done" ? "cumplido" : c.state === "miss" ? "no cumplido" : "sin registro"}`;
+          const label = `${r.habit.name}, ${Logic.longDate(c.key)}: ${c.state === "done" ? "cumplido" : c.state === "miss" ? "no cumplido" : c.state === "off" ? "no programado" : "sin registro"}`;
           return c.key === today
             ? h("button", { type: "button", class: "dh-cell " + c.state + " today", title: label + " (pulsa para cambiar)", "aria-label": label, "aria-pressed": String(c.state === "done"), onclick: () => setHabitDay(r.habit.id, today, c.state !== "done") })
             : h("i", { class: "dh-cell " + c.state, title: label });
@@ -168,11 +190,19 @@ function applyDashLayout() {
       h("button", { type: "button", "aria-pressed": String(hidden.includes(id)), onclick: () => saveDashLayout({ order, hidden: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id] }, id) }, hidden.includes(id) ? "Mostrar" : "Ocultar")
     );
   }
+  // Fila "Qué mostrar": una pastilla por bloque para activarlo/ocultarlo de un vistazo (mismo estado que el botón de cada bloque)
+  $("#dbShowRow").replaceChildren(h("span", { class: "db-show-label", text: "Qué mostrar" }),
+    ...order.filter((id) => els.has(id)).map((id) => {
+      const on = !hidden.includes(id);
+      return h("button", { type: "button", class: "db-chip" + (on ? " on" : ""), "aria-pressed": String(on), text: els.get(id).dataset.title,
+        onclick: () => saveDashLayout({ order, hidden: on ? [...hidden, id] : hidden.filter((x) => x !== id) }) });
+    }));
   board.classList.toggle("editing", dashEditing);
   show($("#dbEditBar"), dashEditing);
   const b = $("#dbCustomize");
   b.setAttribute("aria-pressed", String(dashEditing));
   b.textContent = dashEditing ? "⚙ Editando…" : "⚙ Personalizar";
+  if (dashEditing) syncPhraseControls();
 }
 
 function saveDashLayout(layout, focusId, dir) {
@@ -185,9 +215,52 @@ function saveDashLayout(layout, focusId, dir) {
 
 $("#dbCustomize").addEventListener("click", () => { dashEditing = !dashEditing; applyDashLayout(); });
 $("#dbLayoutDone").addEventListener("click", () => { dashEditing = false; applyDashLayout(); $("#dbCustomize").focus(); });
-$("#dbLayoutReset").addEventListener("click", () => { store.set("dashLayout", null); applyDashLayout(); toast("Resumen restablecido."); });
+$("#dbLayoutReset").addEventListener("click", () => { store.set("dashLayout", null); store.set("phrase", null); syncPhraseControls(); renderPhrase(todayKey()); applyDashLayout(); toast("Resumen restablecido."); });
 
-/* ---------- Bloque de tiempo: usa el MISMO temporizador de la página Tiempo (una sola fuente de verdad) ---------- */
+/* ---------- Barra de tiempo: usa el MISMO temporizador de la página Tiempo (una sola fuente de verdad) ----------
+ * No hay un segundo reloj ni otro setInterval por modo: los botones delegan en los de la página Tiempo (iniciar,
+ * pausar, finalizar, reiniciar, cambiar de modo) y esta función solo lee el estado y repinta. Así no puede haber
+ * intervalos duplicados ni saltos de tiempo al cambiar de modo (eso lo resuelve switchMode de timer.js). */
+
+const MIN_MS = 60000, MAX_MS = 24 * 3600000, STEP_MS = 60000; // − y + mueven exactamente 1 minuto
+
+// Mm:ss, o h:mm:ss si pasa de una hora (formato compacto de la referencia)
+function compactClock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000)), hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+  const p = (n) => String(n).padStart(2, "0");
+  return hh ? `${hh}:${p(mm)}:${p(ss)}` : `${p(mm)}:${p(ss)}`;
+}
+
+// Duración que dejaría un clic en − (dir = -1) o + (dir = 1). Nunca baja de 1 minuto, ni de lo ya transcurrido (en pausa).
+function nextDuration(dir) {
+  const cur = Math.max(0, Number(state.timer.target_ms) || 0);
+  const floor = Math.max(MIN_MS, Math.ceil(elapsed() / STEP_MS) * STEP_MS);
+  return Math.max(floor, Math.min(MAX_MS, cur + dir * STEP_MS));
+}
+
+// El cambio se ve al instante (local) y se guarda en Supabase una sola vez cuando dejas de pulsar,
+// así pulsar + varias veces seguidas no genera una escritura por clic. Cualquier otra acción del temporizador
+// (iniciar, pausar, cambiar de modo…) guarda antes lo pendiente para que nada se pise.
+let durationSave = null, durationPending = null;
+function flushDuration() {
+  clearTimeout(durationSave);
+  if (durationPending == null) return Promise.resolve();
+  const v = durationPending;
+  durationPending = null;
+  return updateTimer({ target_ms: v });
+}
+function nudgeDuration(dir) {
+  const t = state.timer;
+  if (!t || t.running || currentMode() !== "timer") return;
+  const next = nextDuration(dir);
+  if (next === (Number(t.target_ms) || 0)) return;
+  state.timer = { ...t, target_ms: next };
+  durationPending = next;
+  renderTimer();
+  syncDashTimer();
+  clearTimeout(durationSave);
+  durationSave = setTimeout(flushDuration, 500);
+}
 
 function syncDashTimer() {
   const t = state.timer;
@@ -196,38 +269,48 @@ function syncDashTimer() {
   const mode = currentMode();
   const running = !!t.running;
   const el = elapsed();
+  const target = Math.max(0, Number(t.target_ms) || 0);
   root.classList.toggle("running", running);
-  $("#dbTimerMode").textContent = MODE_NAMES[mode] + (t.label ? " · " + t.label : "");
   $$("#dbTimer .db-tm").forEach((b) => { const on = b.dataset.mode === mode; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); });
-  // el reloj es el mismo texto que pinta la página Tiempo en cada tic
-  $("#dbTimerClock").textContent = $("#timer-display").textContent;
-  const idle = !running && el === 0;
-  show($("#dbTimerAdjust"), mode === "timer" && idle);
-  $("#dbTimerNote").textContent = running ? "En marcha. Se guarda al finalizar." : el > 0 ? "En pausa." : mode === "timer" ? `Duración: ${Logic.formatDuration(Math.max(0, Number(t.target_ms) || 0))}` : mode === "stopwatch" ? "Listo para empezar." : mode === "pomodoro" ? "Pomodoro listo." : "";
-  // Barra de progreso: temporizador → tiempo gastado de la duración; pomodoro → fase actual; cronómetro → sin tope (sin barra)
+
+  // − / valor / +: solo en Temporizador. Al ocultarse se pliegan (CSS) y la barra de progreso ocupa su espacio.
+  const isTimer = mode === "timer";
+  $("#dbDuration").classList.toggle("is-hidden", !isTimer);
+  if (isTimer) {
+    const min = target / 60000;
+    $("#dbTimerDuration").textContent = Number.isInteger(min) ? `${min} min` : Logic.formatDuration(target);
+    $("#dbTimerMinus").disabled = running || nextDuration(-1) === target;
+    $("#dbTimerPlus").disabled = running || nextDuration(1) === target;
+  }
+
+  // Texto de tiempo: el mismo que pinta la página Tiempo (cuenta atrás en Temporizador, hacia arriba en Cronómetro)
+  const clock = $("#timer-display").textContent.replace(/^00:/, "");
+  $("#dbTimerClock").textContent = isTimer ? `${clock} / ${compactClock(target)}` : clock;
+
+  // Progreso: Temporizador = lo transcurrido; Cronómetro = vuelta de 1 hora; Pomodoro = el mismo valor que el anillo de Tiempo
+  let pct = 0;
+  if (isTimer) pct = target ? Math.min(100, (el / target) * 100) : 0;
+  else if (mode === "stopwatch") pct = ((el % 3600000) / 3600000) * 100;
+  else { const v = parseFloat($("#timer-ring").style.getPropertyValue("--pct")); pct = Number.isFinite(v) ? v : 0; }
   const bar = $("#dbTimerBar");
-  let pct = null;
-  if (mode === "timer") { const tg = Math.max(0, Number(t.target_ms) || 0); pct = tg ? Math.min(100, (el / tg) * 100) : 0; }
-  else if (mode === "pomodoro" || mode === "routine") { const v = parseFloat($("#timer-ring").style.getPropertyValue("--pct")); pct = Number.isFinite(v) ? v : 0; } // mismo valor que pinta el anillo de la página Tiempo
-  show(bar, pct != null);
-  if (pct != null) { bar.firstElementChild.style.width = pct + "%"; bar.setAttribute("aria-valuenow", String(Math.round(pct))); }
-  const presets = $("#dbTimerPresets");
-  show(presets, mode === "timer" && idle);
-  if (mode === "timer") $$("#dbTimerPresets button").forEach((b) => b.classList.toggle("on", Number(b.dataset.min) * 60000 === (Number(t.target_ms) || 0)));
-  const start = $("#timer-start");
-  $("#dbTimerStart").disabled = start.disabled;
-  $("#dbTimerStart span").textContent = el > 0 ? "Reanudar" : "Iniciar";
+  bar.firstElementChild.style.width = pct + "%";
+  bar.setAttribute("aria-valuenow", String(Math.round(pct)));
+
+  $("#dbTimerStart").disabled = $("#timer-start").disabled || running;
+  $("#dbTimerStart span").textContent = running ? "En marcha" : el > 0 ? "Reanudar" : "Iniciar";
   $("#dbTimerPause").disabled = $("#timer-pause").disabled;
   $("#dbTimerFinish").disabled = $("#timer-finish").disabled;
+  $("#dbTimerReset").disabled = $("#timer-reset").disabled;
 }
 
-$("#dbTimerStart").addEventListener("click", () => $("#timer-start").click());
-$("#dbTimerPause").addEventListener("click", () => $("#timer-pause").click());
-$("#dbTimerFinish").addEventListener("click", () => $("#timer-finish").click());
-$("#dbTimerPresets").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) applyCountdown(Number(b.dataset.min) * 60000); });
-$("#dbTimerMinus").addEventListener("click", () => applyCountdown(Math.max(60000, targetMs() - 5 * 60000)));
-$("#dbTimerPlus").addEventListener("click", () => applyCountdown(targetMs() + 5 * 60000));
-$("#dbTimer .db-timer-modes").addEventListener("click", (e) => { const b = e.target.closest(".db-tm"); if (b) switchMode(b.dataset.mode).then(syncDashTimer); });
+$("#dbTimerStart").addEventListener("click", () => flushDuration().then(() => $("#timer-start").click()));
+$("#dbTimerPause").addEventListener("click", () => flushDuration().then(() => $("#timer-pause").click()));
+$("#dbTimerFinish").addEventListener("click", () => flushDuration().then(() => $("#timer-finish").click()));
+$("#dbTimerReset").addEventListener("click", () => flushDuration().then(() => $("#timer-reset").click())); // pide confirmación si hay tiempo sin guardar
+$("#dbTimerMinus").addEventListener("click", () => nudgeDuration(-1));
+$("#dbTimerPlus").addEventListener("click", () => nudgeDuration(1));
+$("#dbTimer .db-timer-modes").addEventListener("click", (e) => { const b = e.target.closest(".db-tm"); if (b) flushDuration().then(() => switchMode(b.dataset.mode)).then(syncDashTimer); });
+// Un único temporizador de repintado (solo con la página Resumen visible); la hora real sale de Date.now(), no de contar tics
 setInterval(() => { if (!document.hidden && currentPage === "dashboard") syncDashTimer(); }, 400);
 
 renderers.push(applyDashLayout, syncDashTimer);

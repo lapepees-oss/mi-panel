@@ -1,7 +1,7 @@
 // Service worker: deja la app abrir sin conexión (los datos vienen de Supabase).
 // Cada vez que cambies un archivo de SHELL, sube el número de CACHE para que los navegadores descarguen la versión nueva.
-const CACHE = "cloudspace-v17";
-const SHELL = ["./", "index.html", "styles.css", "login.css", "pages.css", "logic.js", "quotes.js", "intel.js", "intelligence.js", "core.js", "ui.js", "data.js", "auth.js", "dashboard.js", "habits.js", "tasks.js", "journal.js", "finance.js", "timer.js", "notify.js", "prefs.js", "guest.js", "sidebar.js", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-32.png", "icons/apple-touch-icon.png"];
+const CACHE = "cloudspace-v19";
+const SHELL = ["./", "index.html", "styles.css", "login.css", "pages.css", "logic.js", "quotes.js", "phrases.js", "intel.js", "intelligence.js", "core.js", "ui.js", "data.js", "auth.js", "dashboard.js", "habits.js", "tasks.js", "journal.js", "finance.js", "timer.js", "notify.js", "prefs.js", "guest.js", "sidebar.js", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-32.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));

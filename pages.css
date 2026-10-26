@@ -288,6 +288,7 @@
 #page-finance .fin-ring span { position: relative; font: 700 12px var(--font); }
 #page-finance .fin-ring.over { background: conic-gradient(var(--danger) 100%, var(--surface3) 0); }
 #page-finance .fin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; align-items: start; }
+#page-finance .fin-col { display: grid; gap: 14px; min-width: 0; align-content: start; }
 #page-finance .finance-history, #page-finance .savings-panel { margin-bottom: 14px; }
 #page-finance .fin-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
 #page-finance .search-box { position: relative; flex: 1; min-width: 180px; }
@@ -302,14 +303,19 @@
 #page-finance .fin-repeat li { display: flex; gap: 8px; align-items: baseline; }
 #page-finance .fin-repeat li span { flex: 1; min-width: 0; overflow-wrap: anywhere; } #page-finance .fin-repeat small { color: var(--muted); }
 #page-finance .trend-col .trend-label { font-size: 11px; }
-@media (max-width: 1000px) { #page-finance .fin-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { #page-finance .fin-grid { grid-template-columns: 1fr; } #page-finance .fin-col { display: contents; } }
 @media (max-width: 560px) { #page-finance .fin-cards { gap: 8px; } #page-finance .fin-card { padding: 12px; } #page-finance .fin-card strong { font-size: 18px; } #page-finance .fin-head .date-nav { width: 100%; } }
 
 /* ================= RESUMEN ================= */
 #page-dashboard .db-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 2px 0 18px; }
-#page-dashboard .db-hero h1 { font: 800 28px var(--font-head); letter-spacing: -1px; }
-#page-dashboard .db-date { color: var(--primary); font-weight: 600; font-size: 13.5px; margin-top: 2px; }
-#page-dashboard .db-welcome { color: var(--muted); font-size: 14px; margin-top: 4px; max-width: 60ch; }
+/* Frase del día: la frase manda por tipografía (serif sobria, tamaño fluido); acento solo en una barra fina y la fecha */
+#page-dashboard .db-phrase { flex: 1 1 360px; min-width: 0; max-width: 70ch; padding-left: 14px; border-left: 2px solid var(--primary); }
+#page-dashboard .db-phrase.plain { border-left-color: var(--line); }
+#page-dashboard .db-phrase.plain .db-date { color: var(--muted); }
+#page-dashboard .db-hero h1 { font: 600 clamp(18px, 2.4vw, 24px)/1.3 Georgia, "Iowan Old Style", "Times New Roman", serif; letter-spacing: -.2px; text-wrap: balance; }
+#page-dashboard .db-phrase-note { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-top: 4px; }
+#page-dashboard .db-date { color: var(--primary); font-weight: 600; font-size: 12px; letter-spacing: .02em; margin-top: 6px; }
+#page-dashboard .db-actions { margin-left: auto; }
 #page-dashboard .db-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 #page-dashboard .db-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
 #page-dashboard .db-metric { display: flex; gap: 12px; align-items: center; background: var(--card-bg, var(--surface)); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; color: inherit; text-decoration: none; min-width: 0; transition: border-color .2s, transform .2s; }
@@ -332,6 +338,7 @@
 .dh-cell.done { background: var(--hc, var(--mint)); }
 .dh-cell.miss { background: color-mix(in srgb, var(--danger) 30%, var(--surface3)); }
 .dh-cell.na { background: var(--surface3); opacity: .45; }
+.dh-cell.off { background: transparent; box-shadow: inset 0 0 0 1px var(--line); opacity: .7; } /* no programado: casilla vacía con borde, distinta de un fallo (rojo) */
 button.dh-cell { cursor: pointer; } button.dh-cell.today { box-shadow: 0 0 0 1.5px var(--primary); }
 .db-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .db-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
@@ -446,18 +453,50 @@ button.dh-cell { cursor: pointer; } button.dh-cell.today { box-shadow: 0 0 0 1.5
 #dbCustomize[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); }
 @media (max-width: 1000px) { #page-dashboard .db-board { grid-template-columns: 1fr; } #page-dashboard .db-widget[data-span] { grid-column: auto; } }
 
-/* ---------- Resumen: bloque de tiempo ---------- */
-.db-timer { display: grid; gap: 12px; justify-items: center; text-align: center; }
-.db-timer-modes { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px; border-radius: 999px; background: var(--surface3); }
-.db-tm { border: 0; background: transparent; color: var(--muted); border-radius: 999px; padding: 7px 13px; font: 650 13px var(--font); }
+/* ---------- Resumen: barra compacta de tiempo (referencia v2) ----------
+   Una sola fila: modos · [− duración +] · iniciar/pausar/finalizar/reiniciar · barra de progreso + tiempo.
+   Al pasar a Cronómetro/Pomodoro, el control de duración se pliega (max-width/opacity, ~380 ms) y la barra de
+   progreso, que tiene flex:1, se ensancha sola ocupando ese hueco. Al volver a Temporizador ocurre lo contrario. */
+#page-dashboard .db-timerbar { padding: 12px 18px; container-type: inline-size; } /* permite decidir el diseño por el ancho real del panel, no de la ventana */
+.db-timer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; text-align: left; min-width: 0; } /* si no cabe en una fila (según el ancho REAL del panel), la barra de progreso baja a su propia línea */
+.db-tb-icon { flex: 0 0 24px; width: 24px; height: 24px; color: var(--primary); }
+.db-timer-modes { display: flex; flex: 0 0 auto; gap: 3px; padding: 3px; border-radius: 12px; background: var(--surface3); border: 1px solid var(--line); }
+.db-tm { border: 0; background: transparent; color: var(--muted); border-radius: 9px; padding: 9px 12px; font: 650 13px var(--font); white-space: nowrap; cursor: pointer; }
 .db-tm:hover { color: var(--text); }
-.db-tm.active { background: var(--primary); color: #fff; }
-.db-timer-clock { font: 800 clamp(38px, 8vw, 54px)/1 var(--font-head); letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
-.db-timer-note { margin: 0; min-height: 1.3em; }
-.db-timer-adjust { display: flex; gap: 8px; }
-.db-timer-adjust.hidden { display: none; }
-.db-timer-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.db-timer.running .db-timer-clock { color: var(--primary); }
+.db-tm.active { background: linear-gradient(135deg, var(--primary2), #6e4cf5); color: #fff; box-shadow: 0 3px 12px rgba(111, 76, 245, .25); }
+.db-duration { display: flex; align-items: center; gap: 4px; padding: 4px; flex: 0 0 auto; overflow: hidden; white-space: nowrap; border-radius: 12px; border: 1px solid var(--line); background: var(--surface3); max-width: 230px; opacity: 1; transform: translateX(0);
+  transition: max-width .38s ease, opacity .25s ease, transform .38s ease, padding .38s ease, border-width .38s ease, margin .38s ease; }
+.db-duration.is-hidden { max-width: 0; opacity: 0; transform: translateX(-10px); padding-left: 0; padding-right: 0; border-width: 0; margin-left: -12px; pointer-events: none; visibility: hidden; transition-property: max-width, opacity, transform, padding, border-width, margin, visibility; }
+.db-icon-btn { width: 32px; height: 32px; flex: 0 0 32px; display: inline-grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: 500 19px var(--font); cursor: pointer; }
+.db-icon-btn:hover:not(:disabled) { background: var(--surface2); }
+.db-icon-btn:disabled { opacity: .35; cursor: default; }
+.db-duration-value { min-width: 70px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+.db-start { flex: 0 0 auto; min-width: 112px; height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 13px; padding: 0 16px; background: linear-gradient(135deg, var(--primary2), #704bf2); color: #fff; font: 650 13px var(--font); white-space: nowrap; cursor: pointer; }
+.db-start:disabled { opacity: .75; cursor: default; }
+.db-start .ico, .db-round .ico { width: 16px; height: 16px; }
+.db-round { flex: 0 0 42px; width: 42px; height: 42px; display: inline-grid; place-items: center; border: 1px solid var(--line2); border-radius: 12px; background: var(--surface3); color: var(--text); cursor: pointer; }
+.db-round:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.db-round:disabled { opacity: .45; cursor: default; }
+.db-sep { display: none; } /* separador de la referencia: se omite porque, al bajar la barra de línea, quedaba suelto */
+.db-progress-area { flex: 1 1 240px; min-width: 120px; display: flex; align-items: center; gap: 14px; }
+.db-timer-bar { flex: 1; height: 9px; overflow: hidden; border-radius: 999px; background: var(--surface3); }
+.db-timer-bar span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #8e74ff, #7860f8); box-shadow: 0 0 12px rgba(128, 101, 255, .24); transition: width .35s linear; }
+.db-readout { font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); }
+.db-timer.running .db-readout { color: var(--primary); }
+.db-timer button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* Panel estrecho: la barra de progreso siempre va en su propia línea (así no salta de sitio al cambiar de modo). Panel ancho: todo en una fila y la barra se ensancha/contrae con la animación. */
+@container (max-width: 1000px) { .db-progress-area { flex-basis: 100%; } }
+@media (max-width: 600px) {
+  .db-timer { gap: 8px; }
+  .db-tb-icon { display: none; }
+  .db-timer-modes { width: 100%; }
+  .db-tm { flex: 1 1 0; min-width: 0; padding: 9px 2px; font-size: 11.5px; }
+  .db-duration.is-hidden { margin-left: 0; }
+  .db-start { min-width: 0; flex: 1 1 auto; }
+  .db-duration-value { min-width: 60px; }
+  .db-readout { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .db-duration, .db-timer-bar span { transition-duration: .01ms !important; } }
 
 /* Suscripciones */
 #page-finance .subs-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 12px; }
@@ -477,16 +516,21 @@ button.dh-cell { cursor: pointer; } button.dh-cell.today { box-shadow: 0 0 0 1.5
 #page-habits .hb-emoji:hover { box-shadow: inset 0 0 0 1px var(--hc); }
 #page-habits .hb-emoji:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-/* Resumen: progreso del temporizador */
-.db-timer-bar { width: 100%; max-width: 360px; height: 8px; border-radius: 999px; background: var(--surface3); overflow: hidden; }
-.db-timer-bar span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--primary); transition: width .4s linear; }
-.db-timer-presets { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.db-timer-presets button { border: 1px solid var(--line2); background: transparent; color: var(--text); border-radius: 999px; padding: 5px 11px; font: 600 12px var(--font); cursor: pointer; }
-.db-timer-presets button:hover, .db-timer-presets button.on { border-color: var(--primary); color: var(--primary); }
-.db-timer-bar.hidden, .db-timer-presets.hidden { display: none; }
-@media (prefers-reduced-motion: reduce) { .db-timer-bar span { transition: none; } }
-
 /* Botones anchos del cronómetro: si el texto no cabe, salta de línea dentro del botón en vez de salirse */
 .timer-controls .wide { min-width: 0; height: auto; min-height: 36px; white-space: normal; text-align: center; line-height: 1.25; padding-top: 8px; padding-bottom: 8px; }
 /* Etiquetas de tarjetas: palabras largas nunca desbordan la caja */
 .stat-label, .stat-foot, .tstat strong, #page-habits .hb-stat small, #page-dashboard .db-metric small, #page-finance .fin-card small { overflow-wrap: anywhere; }
+
+/* Ajustes de la frase del día dentro de la barra de personalizar */
+.db-phrase-set { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; border: 0; padding: 0; margin: 0; flex-basis: 100%; font-size: 13px; color: var(--muted); }
+.db-phrase-set legend { float: left; margin-right: 12px; padding: 0; color: var(--text); font-weight: 650; }
+.db-phrase-set label { display: inline-flex; align-items: center; gap: 6px; }
+.db-phrase-set select { background: var(--surface2, var(--surface)); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font: inherit; }
+.db-phrase-set .chk input { accent-color: var(--primary); }
+
+/* Fila "Qué mostrar" del modo personalizar: pastillas con el mismo lenguaje visual que los filtros */
+.db-show { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-basis: 100%; }
+.db-show-label { color: var(--text); font-weight: 650; font-size: 13px; margin-right: 6px; }
+.db-chip { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 5px 12px; font: 600 12.5px var(--font); transition: background-color .18s, border-color .18s, color .18s; }
+.db-chip:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--line)); color: var(--text); }
+.db-chip.on { background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 45%, transparent); color: var(--primary); }

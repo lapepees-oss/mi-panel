@@ -43,13 +43,13 @@
         });
         continue;
       }
-      const rate = L.completionRate(days, today, 30, created);
+      const rate = L.completionRate(days, today, 30, created, (k) => L.habitDueOn(freq, k));
       if (rate.total >= 14 && rate.pct < 40) {
         cards.push({
           id: `hab-low-${hb.id}`, category: "habitos", kind: "pattern", severity: 2,
           title: `«${hb.name}» se cumple pocas veces`,
           problem: `Cumplimiento del ${rate.pct}% en los últimos ${rate.total} días.`,
-          evidence: [`${rate.done} de ${rate.total} días cumplidos.`, `Frecuencia configurada: ${freq}.`],
+          evidence: [`${rate.done} de ${rate.total} días cumplidos.`, `Frecuencia configurada: ${L.freqLabel(freq)}.`],
           recommendation: "Valora si la frecuencia o la dificultad son realistas (por ejemplo, pasar de diario a entre semana o acortarlo). Es una hipótesis: solo tú sabes si el hábito sigue siendo importante.",
           benefit: null, action: null, review: { page: "habits", label: "Editar hábito" },
         });
@@ -426,8 +426,8 @@
         const freq = L.habitFrequency(h);
         const days = d.byHabit.get(h.id) || new Set();
         const created = L.dayOfTimestamp(h.created_at) || today;
-        const r = L.completionRate(days, today, 30, created);
-        lines.push(`- ${tn(h.name, i, "Hábito")} (${L.habitCategory(h)}, ${freq}): ${r.total ? `${r.pct}% en los últimos ${r.total} días (${r.done}/${r.total})` : "sin días suficientes"}; racha actual ${L.habitStreak(freq, days, today)}, mejor ${L.habitBestStreak(freq, days)}.`);
+        const r = L.completionRate(days, today, 30, created, (k) => L.habitDueOn(freq, k));
+        lines.push(`- ${tn(h.name, i, "Hábito")} (${L.habitCategory(h)}, ${L.freqLabel(freq)}): ${r.total ? `${r.pct}% en los últimos ${r.total} días (${r.done}/${r.total})` : "sin días suficientes"}; racha actual ${L.habitStreak(freq, days, today)}, mejor ${L.habitBestStreak(freq, days)}.`);
       });
     }
     lines.push("");

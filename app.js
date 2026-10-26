@@ -22,13 +22,73 @@ function routeFromHash() {
   return allowed(saved) ? saved : "dashboard";
 }
 
+/* ---------- Transiciones entre apartados ----------
+ * Sin recargar nada: el apartado actual se desvanece (≈110 ms) y el nuevo entra con un pequeño desplazamiento horizontal
+ * y un fundido; la dirección depende de si el destino queda a la derecha o a la izquierda en la navegación.
+ * Con "reducir movimiento" no hay espera ni animación. Un token evita que dos clics seguidos dejen una página a medias. */
+const PAGE_ORDER = Object.keys(PAGE_NAMES);
+const reducedMotion = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+let pageSwapToken = 0;
+
+function swapPage(prev, next) {
+  const token = ++pageSwapToken;
+  const apply = () => {
+    for (const name of PAGE_ORDER) {
+      const el = $(`#page-${name}`);
+      el.classList.remove("page-out", "page-in-r", "page-in-l");
+      show(el, name === next);
+    }
+    window.scrollTo(0, 0);
+    const el = $(`#page-${next}`);
+    if (prev && prev !== next && !reducedMotion()) {
+      void el.offsetWidth; // reinicia la animación sin tocar el resto de la página
+      el.classList.add(PAGE_ORDER.indexOf(next) >= PAGE_ORDER.indexOf(prev) ? "page-in-r" : "page-in-l");
+    }
+    armReveal(el);
+  };
+  const out = prev && prev !== next ? $(`#page-${prev}`) : null;
+  if (!out || out.classList.contains("hidden") || reducedMotion()) return apply();
+  out.classList.add("page-out");
+  setTimeout(() => token === pageSwapToken && apply(), 110);
+}
+
+// Los bloques que quedan por debajo de la pantalla aparecen (fundido corto) la primera vez que se ven; los visibles no se animan
+let revealObserver = null;
+function armReveal(pageEl) {
+  if (reducedMotion() || !("IntersectionObserver" in window)) return;
+  revealObserver = revealObserver || new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.remove("reveal-pending"); revealObserver.unobserve(e.target); }
+  }, { rootMargin: "0px 0px -6% 0px" });
+  pageEl.querySelectorAll(".db-widget, .fin-col > section, .fin-col > .panel").forEach((el) => {
+    if (el.dataset.revealed || el.getBoundingClientRect().top < innerHeight) return;
+    el.dataset.revealed = "1"; el.classList.add("reveal-pending"); revealObserver.observe(el);
+  });
+}
+
+/* Indicador deslizante de la navegación: un único elemento que se mueve hasta el enlace activo (barra lateral y barra inferior) */
+function moveNavIndicator() {
+  for (const nav of $$(".nav, .bottom-nav")) {
+    if (!nav.offsetParent && getComputedStyle(nav).position !== "fixed") continue; // oculta en este tamaño de pantalla
+    let ind = nav.querySelector(":scope > .nav-ind");
+    if (!ind) { ind = h("span", { class: "nav-ind", "aria-hidden": "true" }); nav.prepend(ind); }
+    const a = nav.querySelector('a[aria-current="page"]');
+    if (!a || !a.offsetWidth) { ind.classList.remove("on"); continue; }
+    ind.style.width = a.offsetWidth + "px"; ind.style.height = a.offsetHeight + "px";
+    ind.style.transform = `translate(${a.offsetLeft}px, ${a.offsetTop}px)`;
+    ind.classList.add("on");
+  }
+}
+window.addEventListener("resize", moveNavIndicator);
+if ("ResizeObserver" in window) { const ro = new ResizeObserver(() => moveNavIndicator()); document.addEventListener("DOMContentLoaded", () => $$(".nav, .bottom-nav").forEach((n) => ro.observe(n))); }
+
 function route() {
   if (!user) return; // ruta privada: sin sesión no se pinta nada
   const next = routeFromHash();
   if (next !== currentPage && typeof flushJournal === "function") flushJournal();
+  const prevPage = currentPage;
   currentPage = next;
   if (/^#\/intelligence/.test(location.hash) && next !== "intelligence") history.replaceState(null, "", "#/" + next); // sección caducada: no se queda la ruta
-  for (const name of Object.keys(PAGE_NAMES)) show($(`#page-${name}`), name === currentPage);
+  swapPage(prevPage, currentPage);
   $$("[data-page]").forEach((a) => {
     if (a.dataset.page === currentPage) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
@@ -37,7 +97,7 @@ function route() {
   $("#crumb").textContent = PAGE_NAMES[currentPage];
   document.title = pageTitle();
   store.set("page", currentPage);
-  window.scrollTo(0, 0);
+  moveNavIndicator();
   renderAll();
 }
 window.addEventListener("hashchange", route);

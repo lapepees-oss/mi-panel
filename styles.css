@@ -3,6 +3,7 @@
    Regla para rejillas: usa repeat(auto-fit, minmax(N px, 1fr)) en vez de un número fijo de columnas, así el texto
    nunca queda apretado cuando cambia el ancho de la ventana o de la barra lateral. */
 :root {
+  --ease-out: cubic-bezier(.2, .75, .25, 1); /* curva única de todas las transiciones: arranque ágil, final suave */
   color-scheme: dark;
   --bg: #0c0d14; --surface: #151722; --surface2: #1b1e2b; --surface3: #222536;
   --text: #f1f2fb; --muted: #9ba1ba; --line: #292c3c; --line2: #3a3d52;
@@ -125,7 +126,14 @@ code { background: var(--surface3); padding: 2px 6px; border-radius: 6px; font-s
 .nav { display: grid; gap: 4px; }
 .nav a, .bottom-nav a { display: flex; align-items: center; gap: 12px; padding: 11px 13px; border-radius: 13px; color: var(--muted); font-weight: 600; transition: background .15s, color .15s; }
 .nav a:hover { background: var(--surface3); color: var(--text); text-decoration: none; }
-.nav a[aria-current="page"] { background: linear-gradient(100deg, var(--primary-soft), transparent); color: var(--primary); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent); }
+.nav a[aria-current="page"] { color: var(--primary); }
+.nav a, .bottom-nav a { position: relative; z-index: 1; }
+/* Indicador deslizante: se mueve (transform) hasta el enlace activo en vez de aparecer de golpe */
+.nav, .bottom-nav { position: relative; }
+.nav-ind { position: absolute; left: 0; top: 0; z-index: 0; border-radius: 13px; pointer-events: none; opacity: 0;
+  background: linear-gradient(100deg, var(--primary-soft), transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+  transition: transform .32s var(--ease-out), width .32s var(--ease-out), height .32s var(--ease-out), opacity .2s; }
+.nav-ind.on { opacity: 1; }
 .sidebar-bottom { margin-top: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .sidebar { overflow-x: hidden; }
 .profile { display: flex; align-items: center; gap: 10px; padding: 4px 4px 0; }
@@ -379,7 +387,9 @@ dialog::backdrop { background: rgba(5, 5, 12, .66); backdrop-filter: blur(2px); 
   .bottom-nav a { flex: 1; min-width: 0; height: 46px; padding: 0; border-radius: 18px; justify-content: center; gap: 0; }
   .bottom-nav a .ico { width: 22px; height: 22px; }
   .bottom-nav a span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .bottom-nav a[aria-current="page"] { background: color-mix(in srgb, #7c9cff 20%, transparent); color: #7c9cff; box-shadow: inset 0 0 0 1px color-mix(in srgb, #7c9cff 40%, transparent); }
+  .bottom-nav { position: fixed; } /* sigue fija; el indicador se coloca respecto a ella */
+  .bottom-nav a[aria-current="page"] { color: #7c9cff; }
+  .bottom-nav .nav-ind { border-radius: 18px; background: color-mix(in srgb, #7c9cff 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, #7c9cff 40%, transparent); }
   /* Sin el recuadro azul rectangular que Chrome/Android pinta al tocar un enlace (tap highlight); el foco de teclado se mantiene, discreto */
   .bottom-nav a { -webkit-tap-highlight-color: transparent; }
   .bottom-nav a:focus:not(:focus-visible) { outline: none; }
@@ -571,3 +581,32 @@ textarea.wiz-input { font-size: 16px; line-height: 1.5; }
 /* Botón de vista «Tablero»: con texto para que se encuentre fácil */
 #task-mode .seg-label { margin-left: 6px; font-size: 13px; }
 #task-mode button:has(.seg-label) { display: inline-flex; align-items: center; }
+
+/* Mapa de constancia: día sin hábitos programados (no es un incumplimiento) */
+.heatmap-cell.off { background: transparent; border-style: dashed; border-color: var(--line2); opacity: .75; }
+/* Días de la semana del asistente de hábitos: botones compactos seleccionables */
+.wiz-days { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0; }
+.wiz-day { min-width: 46px; height: 40px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line2); background: transparent; color: var(--muted); font: 600 13px var(--font); cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.wiz-day:hover { background: var(--surface3); color: var(--text); }
+.wiz-day[aria-pressed="true"] { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.wiz-day:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.wiz-days-hint { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+@media (prefers-reduced-motion: reduce) { .wiz-day { transition: none; } }
+
+/* ================= Movimiento (transiciones entre apartados y microinteracciones) ================= */
+/* Entrada del apartado nuevo: desplazamiento horizontal corto + fundido. Salida: fundido rápido hacia el lado contrario */
+.page-in-r { animation: page-in-r .32s var(--ease-out) both; }
+.page-in-l { animation: page-in-l .32s var(--ease-out) both; }
+.page-out { opacity: 0; transform: translateX(-8px); transition: opacity .11s ease, transform .11s ease; pointer-events: none; }
+@keyframes page-in-r { from { opacity: 0; transform: translateX(14px); } }
+@keyframes page-in-l { from { opacity: 0; transform: translateX(-14px); } }
+/* Aparición al desplazarse: solo bloques que estaban fuera de pantalla, una vez */
+.reveal-pending { opacity: 0; transform: translateY(10px); }
+.db-widget, .fin-col > section, .fin-col > .panel { transition: opacity .4s var(--ease-out), transform .4s var(--ease-out); }
+/* Microinteracciones discretas: color/borde en el hover y un leve "hundido" al pulsar; sin zooms ni rebotes */
+.primary-btn:active, .secondary:active, .hb-complete:active, .wiz-chip:active, .db-tools button:active { transform: scale(.985); }
+.secondary:hover:not(:disabled), .link-button:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--line)); }
+.task-card:hover, .card-task:hover, .hb-card-item:hover { border-color: color-mix(in srgb, var(--primary) 35%, var(--line)); }
+.primary-btn, button.secondary, .file-btn, .link-button { transition: background-color .18s ease, border-color .18s ease, filter .18s ease, transform .12s ease; }
+button.secondary:active:not(:disabled), .link-button:active { transform: scale(.985); }
+.hb-card-item, .db-metric { transition: border-color .18s ease, transform .18s ease; }

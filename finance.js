@@ -212,14 +212,15 @@ function renderSubs() {
   const eur = Logic.formatEUR, today = todayKey();
   const s = Logic.subSummary(state.subs, today);
   $("#subsCaption").textContent = state.subs.length ? `${s.active} activa${s.active === 1 ? "" : "s"}${s.paused ? ` · ${s.paused} en pausa` : ""}${s.cancelled ? ` · ${s.cancelled} cancelada${s.cancelled === 1 ? "" : "s"}` : ""}` : "Lo que pagas de forma recurrente.";
-  const stat = (label, value, note) => h("div", { class: "subs-stat" }, h("span", { class: "subs-stat-label", text: label }), h("strong", { text: value }), note ? h("small", { text: note }) : null);
+  // replaceChildren() convierte null en el texto "null": los bloques opcionales se filtran antes de pasarlos
+  const stat = (label, value, note) => h("div", { class: "subs-stat" }, ...[h("span", { class: "subs-stat-label", text: label }), h("strong", { text: value }), note ? h("small", { text: note }) : null].filter(Boolean));
   const next = s.upcoming[0];
-  sum.replaceChildren(
+  sum.replaceChildren(...[
     stat("Gasto mensual", eur(s.monthly), "equivalente de las activas"),
     stat("Gasto anual", eur(s.yearly), "si sigues igual"),
     next ? stat("Próximo cobro", next.sub.name, `${eur(next.cents)} · ${next.days <= 0 ? "hoy" : next.days === 1 ? "mañana" : "en " + next.days + " días"}`) : null,
     s.freedMonthly > 0 ? stat("Ahorro por cancelar", eur(s.freedMonthly) + "/mes", "lo que ya no pagas") : null
-  );
+  ].filter(Boolean));
   if (!state.subs.length) {
     list.replaceChildren(h("li", { class: "empty-state", text: "Aún no has añadido suscripciones. Añade una para ver cuánto gastas al mes y al año." }));
     return;
