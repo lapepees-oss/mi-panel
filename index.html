@@ -224,19 +224,6 @@
           </div>
         </header>
 
-        <div class="db-editbar hidden" id="dbEditBar" role="region" aria-label="Personalizar el resumen">
-          <p><strong>Personaliza tu Resumen.</strong> Arrastra cada bloque por su asa, cambia su tamaño desde los bordes o la esquina, y añade o quita bloques del catálogo. Se guarda en tu cuenta.</p>
-          <div class="db-catalog" id="dbShowRow" role="group" aria-label="Catálogo de bloques"></div>
-          <fieldset class="db-phrase-set" id="dbPhraseSet" aria-label="Frase del día">
-            <legend>Frase del día</legend>
-            <label class="chk"><input type="checkbox" id="phShow"> Mostrar</label>
-            <label>Estilo <select id="phStyle"><option value="mixto">Mixto</option><option value="filosofico">Filosófico</option><option value="motivacional">Motivacional</option><option value="reflexivo">Reflexivo</option></select></label>
-            <label>Interpretación <select id="phLen"><option value="corta">Corta</option><option value="larga">Larga</option><option value="ninguna">Sin interpretación</option></select></label>
-            <label class="chk"><input type="checkbox" id="phDate"> Fecha</label>
-            <label class="chk"><input type="checkbox" id="phAccent"> Acento de color</label>
-          </fieldset>
-          <div><button type="button" class="secondary small" id="dbLayoutReset">Restablecer</button> <button type="button" class="primary-btn small" id="dbLayoutDone">Listo</button></div>
-        </div>
         <div class="db-board" id="dbBoard">
         <div class="db-widget" data-widget="metrics" data-title="Métricas">
   <section class="db-metrics" aria-label="Métricas">
@@ -853,6 +840,28 @@
   <dialog id="sheet-dialog" aria-label="Diálogo"></dialog>
   <dialog id="intel-dialog" aria-label="CloudSpace Intelligence" class="it-dialog"></dialog>
 
+  <button type="button" id="dbDrawerTab" class="dr-tab hidden" aria-controls="dbDrawer" aria-expanded="true" aria-label="Ocultar el panel de widgets" title="Ocultar / mostrar el panel de widgets"><span aria-hidden="true">›</span></button>
+  <aside id="dbDrawer" class="db-drawer" aria-label="Widgets del Resumen" aria-hidden="true" inert>
+    <header class="dr-head">
+      <div><strong>Widgets</strong><small>Arrastra uno al Resumen o pulsa «Añadir»</small></div>
+      <button type="button" class="primary-btn small" id="dbLayoutDone">Listo</button>
+    </header>
+    <div class="dr-body">
+      <section aria-labelledby="drAvail"><h3 id="drAvail">Disponibles</h3><div class="dr-list" id="dbAvail"></div><p class="dr-empty hidden" id="dbAvailEmpty">Ya tienes todos los widgets en tu Resumen.</p></section>
+      <section aria-labelledby="drUsed"><h3 id="drUsed">En tu Resumen</h3><div class="dr-list" id="dbShowRow"></div></section>
+      <details class="dr-more">
+        <summary>Frase del día</summary>
+        <fieldset class="db-phrase-set" id="dbPhraseSet" aria-label="Frase del día">
+          <label class="chk"><input type="checkbox" id="phShow"> Mostrar</label>
+          <label>Estilo <select id="phStyle"><option value="mixto">Mixto</option><option value="filosofico">Filosófico</option><option value="motivacional">Motivacional</option><option value="reflexivo">Reflexivo</option></select></label>
+          <label>Interpretación <select id="phLen"><option value="corta">Corta</option><option value="larga">Larga</option><option value="ninguna">Sin interpretación</option></select></label>
+          <label class="chk"><input type="checkbox" id="phDate"> Fecha</label>
+          <label class="chk"><input type="checkbox" id="phAccent"> Acento de color</label>
+        </fieldset>
+      </details>
+    </div>
+    <footer class="dr-foot"><button type="button" class="secondary small" id="dbLayoutReset">Restablecer Resumen</button></footer>
+  </aside>
   <button type="button" id="itCloud" class="it-cloud hidden" aria-label="Abrir CloudSpace Intelligence" aria-haspopup="dialog" aria-expanded="false" title="CloudSpace Intelligence"><svg class="ico"><use href="#i-cloud"/></svg><i class="it-dot hidden" aria-hidden="true"></i></button>
   <section id="itWindow" class="it-window hidden" role="dialog" aria-modal="false" aria-labelledby="itWinTitle">
     <header><strong id="itWinTitle"><svg class="ico"><use href="#i-cloud"/></svg> CloudSpace Intelligence</strong></header>

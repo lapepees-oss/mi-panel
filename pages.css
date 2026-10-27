@@ -457,10 +457,6 @@ button.dh-cell { cursor: pointer; } button.dh-cell.today { box-shadow: 0 0 0 1.5
 .db-tools button { border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 9px; min-width: 34px; height: 30px; padding: 0 9px; font: 600 12.5px var(--font); }
 .db-tools button:hover:not(:disabled) { border-color: var(--primary); }
 .db-tools button:disabled { opacity: .35; cursor: default; }
-.db-editbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }
-.db-editbar p { margin: 0; font-size: 13.5px; color: var(--muted); }
-.db-editbar p strong { color: var(--text); }
-.db-editbar.hidden { display: none; }
 #page-dashboard .db-widget > .db-metrics { margin-bottom: 0; }
 #dbCustomize[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); }
 @media (max-width: 760px) { #page-dashboard .db-board { grid-template-columns: 1fr; } #page-dashboard .db-widget { grid-column: 1 / -1; } .db-rz.e, .db-rz.se::after { display: none; } .db-rz.se { display: none; } .db-rz.s { height: 26px; bottom: -13px; } }
@@ -589,3 +585,66 @@ button.dh-cell { cursor: pointer; } button.dh-cell.today { box-shadow: 0 0 0 1.5
 .w-sec + .w-sec { margin-top: 12px; } .w-h { display: block; margin-bottom: 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
 .btn-link { text-decoration: none; display: inline-flex; align-items: center; } .w-foot { margin: 8px 0 0; font-size: 12.5px; }
 @media (prefers-reduced-motion: reduce) { .w-skel { animation: none; } .w-bar span { transition: none; } }
+
+/* ---------- Panel lateral de widgets (modo Personalizar) ---------- */
+.db-drawer { position: fixed; z-index: 75; top: 0; right: 0; bottom: 0; width: min(92vw, 360px); display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line2, var(--line)); box-shadow: -18px 0 50px rgba(0, 0, 0, .35); transform: translateX(104%); visibility: hidden; transition: transform .38s var(--ease-out, ease), visibility 0s .38s, opacity .2s; }
+.db-drawer.open { transform: none; visibility: visible; transition: transform .38s var(--ease-out, ease), visibility 0s, opacity .2s; }
+.dr-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 16px 16px 12px; border-bottom: 1px solid var(--line); }
+.dr-head strong { display: block; font: 750 17px var(--font-head, inherit); } .dr-head small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.dr-body { flex: 1; overflow: auto; padding: 6px 14px 14px; overscroll-behavior: contain; }
+.dr-body h3 { margin: 16px 0 8px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+.dr-list { display: grid; gap: 9px; }
+.dr-empty { color: var(--muted); font-size: 13px; margin: 0; }
+.dr-card { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface2, var(--surface)); }
+.dr-card .dr-thumb { grid-column: 1 / -1; }
+.dr-card .dr-info { min-width: 0; } .dr-card b { display: block; font-size: 14px; } .dr-card small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; } .dr-card .dr-size { margin-top: 2px; opacity: .8; }
+.dr-card.on { border-color: color-mix(in srgb, var(--primary) 40%, var(--line)); }
+.dr-thumb { padding: 10px; border-radius: 10px; background: var(--bg, #14151d); border: 1px solid var(--line); min-height: 70px; touch-action: auto; }
+.dr-thumb.grab { cursor: grab; touch-action: none; transition: border-color .2s, transform .2s; }
+.dr-thumb.grab:hover { border-color: var(--primary); transform: translateY(-1px); } .dr-thumb.grab:active { cursor: grabbing; }
+.dr-more { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; } .dr-more summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.dr-more .db-phrase-set { margin-top: 10px; display: grid; gap: 8px; }
+.dr-foot { padding: 12px 16px; border-top: 1px solid var(--line); }
+body.db-adding .db-drawer { opacity: .18; pointer-events: none; } /* mientras arrastras un widget se ve el Resumen entero */
+body.db-adding, body.db-adding * { cursor: grabbing !important; user-select: none; }
+.dr-ghost { position: fixed; z-index: 90; left: 0; top: 0; width: 210px; padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--primary); box-shadow: 0 18px 44px rgba(0, 0, 0, .5); pointer-events: none; opacity: .95; } .dr-ghost b { display: block; margin-top: 6px; font-size: 13px; }
+.db-drop { grid-column: span var(--w, 3); min-height: 90px; display: grid; place-items: center; border: 2px dashed var(--primary); border-radius: 18px; background: color-mix(in srgb, var(--primary) 9%, transparent); color: var(--primary); font-weight: 650; font-size: 13px; }
+@media (min-width: 1100px) { body.db-editing #page-dashboard { margin-right: min(372px, 28vw); transition: margin-right .38s var(--ease-out, ease); } }
+
+/* Maquetas de previsualización (sin cifras: son esquemas, no datos) */
+.mp { display: grid; gap: 7px; pointer-events: none; min-width: 0; }
+.mp i { display: block; border-radius: 6px; background: var(--surface3, #2a2a3d); } .mp .ln { height: 7px; } .mp .ln.s { width: 62%; } .mp .ln.xs { width: 34px; flex: 0 0 34px; }
+.mp .dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 12px; border: 2px solid var(--line2, #3a3a52); background: transparent; }
+.mp .sq { width: 16px; height: 16px; border-radius: 5px; background: color-mix(in srgb, var(--primary) 55%, transparent); }
+.mp .btn { width: 54px; height: 15px; border-radius: 8px; background: var(--primary); opacity: .85; }
+.mp.g4 { grid-template-columns: repeat(4, 1fr); } .mp.g3 { grid-template-columns: repeat(3, 1fr); } .mp.g2 { grid-template-columns: repeat(2, 1fr); }
+.mp-tile { display: grid; gap: 5px; padding: 6px; border-radius: 8px; border: 1px solid var(--line); }
+.mp-row { display: flex; align-items: center; gap: 7px; } .mp-row .ln:not(.s):not(.xs) { flex: 1; } .mp-row.sp { justify-content: space-between; }
+.mp-pills { display: flex; gap: 5px; align-items: center; } .mp-pills i:not(.btn):not(.ln) { width: 38px; height: 14px; border-radius: 8px; }
+.mp-bar { height: 7px; border-radius: 6px; background: var(--surface3, #2a2a3d); overflow: hidden; } .mp-bar i { height: 100%; background: var(--primary); width: 100%; border-radius: inherit; }
+.mp-dots { display: flex; gap: 3px; } .mp-dots i { width: 9px; height: 9px; border-radius: 50%; } .mp-dots i.on { background: var(--mint, #5fd38d); opacity: .85; } .mp-dots i.off { background: var(--surface3, #2a2a3d); }
+.mp.mrow { grid-auto-flow: column; align-items: center; grid-template-columns: auto 1fr; } .mp .ring { width: 34px; height: 34px; border-radius: 50%; background: conic-gradient(var(--primary) 0 68%, var(--surface3, #2a2a3d) 0); -webkit-mask: radial-gradient(circle 9px, transparent 98%, #000 100%); mask: radial-gradient(circle 9px, transparent 98%, #000 100%); } .mp .mcol { display: grid; gap: 6px; }
+.mp.bars { grid-auto-flow: column; align-items: end; height: 52px; gap: 6px; } .mp.bars i { background: linear-gradient(var(--mint, #5fd38d), var(--primary)); border-radius: 4px 4px 2px 2px; }
+.mp .qm { width: 18px; height: 14px; background: color-mix(in srgb, var(--primary) 60%, transparent); border-radius: 4px; }
+.mp-box { height: 30px; border-radius: 8px; border: 1px solid var(--line2, #3a3a52); }
+.mp-meter { display: grid; gap: 4px; } .mp-miles { display: flex; justify-content: space-between; } .mp-miles i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--line2, #3a3a52); background: transparent; } .mp-miles i.on { background: var(--mint, #5fd38d); border-color: var(--mint, #5fd38d); }
+.mp .star { width: 14px; height: 14px; flex: 0 0 14px; background: var(--peach, #ffb86b); clip-path: polygon(50% 0, 62% 36%, 100% 38%, 70% 60%, 80% 100%, 50% 76%, 20% 100%, 30% 60%, 0 38%, 38% 36%); border-radius: 0; }
+
+/* Efecto «gota en el agua» al añadir un widget */
+#page-dashboard .db-widget.just-added { animation: db-drop-in .75s var(--ease-out, ease) both; z-index: 25; }
+.db-ripple { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+.db-ripple i { position: absolute; inset: 0; border: 2px solid var(--primary); border-radius: 18px; opacity: 0; animation: db-ripple 1.9s cubic-bezier(.15, .6, .3, 1) both; box-shadow: 0 0 16px color-mix(in srgb, var(--primary) 45%, transparent); }
+/* Nacen en el borde del widget y se expanden hacia fuera (el interior queda libre), como las ondas de una gota */
+@keyframes db-ripple { 0% { inset: 0; opacity: .9; border-width: 3px; } 100% { inset: -78px; opacity: 0; border-width: 1px; border-radius: 52px; } }
+@keyframes db-drop-in { 0% { transform: scale(.9); opacity: 0; box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 60%, transparent); } 45% { transform: scale(1.025); opacity: 1; box-shadow: 0 0 0 10px color-mix(in srgb, var(--primary) 22%, transparent); } 100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; } }
+#page-dashboard .db-widget.just-added.has-h { overflow: visible; }
+@media (prefers-reduced-motion: reduce) { .db-drawer, .db-drawer.open { transition: none; } .db-ripple i, #page-dashboard .db-widget.just-added { animation: none; } #page-dashboard .db-widget.just-added { outline: 2px solid var(--primary); } }
+
+#page-dashboard { overflow-x: clip; }
+
+.dr-tab { position: fixed; z-index: 76; top: 50%; right: min(92vw, 360px); transform: translateY(-50%); width: 26px; height: 64px; border: 1px solid var(--line2, var(--line)); border-right: 0; border-radius: 12px 0 0 12px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 18px; box-shadow: -8px 0 24px rgba(0, 0, 0, .3); transition: right .38s var(--ease-out, ease); }
+.dr-tab.hidden { display: none; }
+body.dr-collapsed .dr-tab { right: 0; }
+body.dr-collapsed #page-dashboard { margin-right: 0 !important; }
+body.db-adding .dr-tab { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .dr-tab { transition: none; } }

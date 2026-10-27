@@ -168,7 +168,7 @@ renderers.push(renderDashboard);
  * el invitado lo tiene solo en memoria. Los botones ↑ ↓ y el ajuste con listas permiten hacerlo sin ratón.
  * Pantallas estrechas: una columna (los anchos no se pueden aplicar), pero el orden y el alto sí. */
 
-let dashEditing = false;
+let dashEditing = false, drawerCollapsed = false;
 const GAP = 14, ROW_PX = Logic.DASH_ROW, ROW_STEP = ROW_PX + GAP;
 const rowsToPx = (n) => n * ROW_PX + (n - 1) * GAP;
 const guestHidden = () => (isGuest() ? ["suggestion"] : []); // CloudSpace Intelligence es de la cuenta: el invitado no la ve
@@ -230,9 +230,16 @@ function applyDashLayout(force) {
       h("button", { type: "button", title: "Ajustes del bloque", "aria-label": `Ajustes de «${title}»`, onclick: () => openWidgetConfig(id) }, "⚙"),
       h("button", { type: "button", title: hidden.includes(id) ? "Mostrar" : "Ocultar", "aria-pressed": String(hidden.includes(id)), "aria-label": `${hidden.includes(id) ? "Mostrar" : "Ocultar"} «${title}»`, onclick: () => toggleWidget(id) }, hidden.includes(id) ? "Mostrar" : "Ocultar"));
   }
-  renderCatalog(layout, els);
+  renderDrawer(layout, els);
   board.classList.toggle("editing", dashEditing);
-  show($("#dbEditBar"), dashEditing);
+  document.body.classList.toggle("db-editing", dashEditing);
+  const dr = $("#dbDrawer");
+  if (!dashEditing) drawerCollapsed = false;
+  dr.classList.toggle("open", dashEditing && !drawerCollapsed);
+  document.body.classList.toggle("dr-collapsed", dashEditing && drawerCollapsed);
+  show($("#dbDrawerTab"), dashEditing);
+  $("#dbDrawerTab").setAttribute("aria-expanded", String(!drawerCollapsed));
+  $("#dbDrawerTab span").textContent = drawerCollapsed ? "‹" : "›"; dr.setAttribute("aria-hidden", String(!dashEditing || drawerCollapsed)); dr.inert = !dashEditing || drawerCollapsed;
   const b = $("#dbCustomize");
   b.setAttribute("aria-pressed", String(dashEditing));
   b.textContent = dashEditing ? "⚙ Editando…" : "⚙ Personalizar";
@@ -251,16 +258,128 @@ function moveBy(id, dir) {
   const g = $(`#dbBoard > .db-widget[data-widget="${id}"] .db-grip`); if (g) g.focus();
 }
 
-/* Catálogo: todos los bloques disponibles, con su descripción; añadir/quitar con un botón */
-function renderCatalog(layout, els) {
-  const { order, hidden } = layout;
-  $("#dbShowRow").replaceChildren(...order.filter((id) => els.has(id) && !guestHidden().includes(id)).map((id) => {
-    const on = !hidden.includes(id), c = Logic.DASH_CATALOG[id];
-    return h("div", { class: "db-cat" + (on ? " on" : "") },
-      h("div", {}, h("b", { text: (layout.cfg[id] && layout.cfg[id].title) || c.title }), h("small", { text: c.desc })),
-      h("button", { type: "button", class: "db-chip" + (on ? " on" : ""), "aria-pressed": String(on), "aria-label": `${on ? "Quitar" : "Añadir"} «${c.title}»`, text: on ? "Quitar" : "Añadir", onclick: () => toggleWidget(id) }));
-  }));
+/* ---------- Panel lateral de widgets (derecha): previsualización, arrastrar al Resumen o pulsar «Añadir» ---------- */
+// Esquema de cada widget (maqueta sin cifras: no son datos). Se dibuja con divs/CSS.
+const MP = (cls, ...k) => h("div", { class: "mp " + cls, "aria-hidden": "true" }, ...k);
+const mpI = (cls = "") => h("i", { class: cls });
+const mpRows = (n, cls = "") => Array.from({ length: n }, () => h("div", { class: "mp-row " + cls }, mpI("dot"), mpI("ln"), mpI("ln s")));
+const MINI = {
+  metrics: () => MP("g4", ...Array.from({ length: 4 }, () => h("div", { class: "mp-tile" }, mpI("sq"), mpI("ln"), mpI("ln s")))),
+  timer: () => MP("mcol", h("div", { class: "mp-pills" }, mpI(), mpI(), mpI(), mpI("btn")), h("div", { class: "mp-bar" }, mpI())),
+  tasks: () => MP("mcol", ...mpRows(3)),
+  heat: () => MP("mcol", ...Array.from({ length: 3 }, (_, r) => h("div", { class: "mp-dots" }, ...Array.from({ length: 14 }, (_, c) => mpI((c * 7 + r * 3) % 5 === 0 ? "off" : "on"))))),
+  week: () => MP("mrow", mpI("ring"), h("div", { class: "mcol" }, mpI("ln"), mpI("ln s"))),
+  activity: () => MP("bars", ...[40, 70, 25, 55, 85, 35, 60].map((n) => h("i", { style: `height:${n}%` }))),
+  finance: () => MP("g3", ...Array.from({ length: 3 }, () => h("div", { class: "mp-tile" }, mpI("ln s"), mpI("ln")))),
+  quote: () => MP("mcol", mpI("qm"), mpI("ln"), mpI("ln"), mpI("ln s")),
+  note: () => MP("mcol", mpI("ln s"), h("div", { class: "mp-box" })),
+  next: () => MP("mcol", mpI("ln"), h("div", { class: "mp-pills" }, mpI(), mpI()), mpI("btn")),
+  budget: () => MP("mcol", ...Array.from({ length: 3 }, (_, i) => h("div", { class: "mp-meter" }, mpI("ln s"), h("div", { class: "mp-bar" }, h("i", { style: `width:${[80, 45, 62][i]}%` }))))),
+  goal: () => MP("mcol", mpI("ln s"), h("div", { class: "mp-bar" }, h("i", { style: "width:55%" })), h("div", { class: "mp-miles" }, mpI("on"), mpI("on"), mpI(), mpI())),
+  focus: () => MP("g2", ...Array.from({ length: 2 }, () => h("div", { class: "mp-tile" }, mpI("ln s"), mpI("ln")))),
+  notes: () => MP("mcol", ...Array.from({ length: 3 }, () => h("div", { class: "mp-row" }, mpI("ln xs"), mpI("ln")))),
+  payments: () => MP("mcol", ...Array.from({ length: 2 }, () => h("div", { class: "mp-row sp" }, mpI("ln"), mpI("ln xs")))),
+  saving: () => MP("mcol", mpI("ln s"), h("div", { class: "mp-bar" }, h("i", { style: "width:35%" })), h("div", { class: "mp-pills" }, mpI("ln xs"), mpI("ln xs"), mpI("ln xs"))),
+  stats: () => MP("g3", ...Array.from({ length: 3 }, () => h("div", { class: "mp-tile" }, mpI("ln"), mpI("ln s")))),
+  suggestion: () => MP("mcol", h("div", { class: "mp-row" }, mpI("star"), mpI("ln")), mpI("ln"), mpI("ln s")),
+};
+const miniFor = (id) => (MINI[id] || (() => MP("mcol", mpI("ln"), mpI("ln s"))))();
+
+function drawerCard(id, layout, on) {
+  const c = Logic.DASH_CATALOG[id], title = (layout.cfg[id] && layout.cfg[id].title) || c.title;
+  const size = Logic.widgetSize(layout, id);
+  const thumb = h("div", { class: "dr-thumb" + (on ? "" : " grab"), title: on ? "" : "Arrastra al Resumen", onpointerdown: on ? null : (ev) => startAdd(ev, id) }, miniFor(id));
+  const card = h("div", { class: "db-cat dr-card" + (on ? " on" : ""), "data-id": id },
+    thumb,
+    h("div", { class: "dr-info" }, h("b", { text: title }), h("small", { text: c.desc }), h("small", { class: "dr-size", text: `${size.w} de 6 columnas` })),
+    h("button", { type: "button", class: "db-chip" + (on ? " on" : ""), "aria-pressed": String(on), "aria-label": `${on ? "Quitar" : "Añadir"} «${c.title}»`, text: on ? "Quitar" : "Añadir", onclick: () => (on ? toggleWidget(id) : addWidget(id, null))}));
+  return card;
 }
+
+function renderDrawer(layout, els) {
+  const { order, hidden } = layout;
+  const ids = order.filter((id) => els.has(id) && !guestHidden().includes(id));
+  const avail = ids.filter((id) => hidden.includes(id)), used = ids.filter((id) => !hidden.includes(id));
+  $("#dbAvail").replaceChildren(...avail.map((id) => drawerCard(id, layout, false)));
+  show($("#dbAvailEmpty"), avail.length === 0);
+  $("#dbShowRow").replaceChildren(...used.map((id) => drawerCard(id, layout, true)));
+}
+
+/* Efecto «gota en el agua»: ondas concentricas que salen del widget recién añadido */
+function rippleWidget(el) {
+  el.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
+  el.classList.remove("just-added"); void el.offsetWidth; el.classList.add("just-added");
+  if (reducedMotion()) { setTimeout(() => el.classList.remove("just-added"), 1200); return; }
+  const wave = h("div", { class: "db-ripple", "aria-hidden": "true" }, ...[0, 1, 2, 3].map((i) => h("i", { style: `animation-delay:${i * 0.22}s` })));
+  el.append(wave);
+  setTimeout(() => { wave.remove(); el.classList.remove("just-added"); }, 2600);
+}
+
+// Añade (o recoloca) un widget: lo muestra, lo pone antes de `beforeId` (o al final) y lanza el efecto de ondas
+function addWidget(id, beforeId) {
+  const l = dashLayoutNow();
+  const order = Logic.placeWidget(l.order, id, beforeId || null);
+  if (matchMedia("(max-width: 1099px)").matches) drawerCollapsed = true; // en pantallas estrechas el panel taparía el resultado
+  saveDash({ ...l, order, hidden: l.hidden.filter((x) => x !== id) });
+  requestAnimationFrame(() => { const el = $(`#dbBoard > .db-widget[data-widget="${id}"]`); if (el) rippleWidget(el); });
+}
+
+// Dónde caería un widget soltado en (x, y): el primer widget visible que quede «después» del punto, o null = al final
+function insertionRef(x, y) {
+  const items = $$("#dbBoard > .db-widget:not(.is-off):not(.dragging)");
+  for (const el of items) {
+    const r = el.getBoundingClientRect();
+    if (y < r.top) return el;
+    if (y <= r.bottom && x < r.left + r.width / 2) return el;
+    if (y <= r.bottom && x >= r.left + r.width / 2 && x <= r.right) { /* mitad derecha: va después */ continue; }
+  }
+  return null;
+}
+
+// Arrastrar desde el panel lateral: una copia fantasma sigue al puntero y un hueco punteado marca dónde caerá
+function startAdd(ev, id) {
+  if (ev.button > 0) return;
+  ev.preventDefault();
+  const pid = ev.pointerId, c = Logic.DASH_CATALOG[id], layout = dashLayoutNow(), size = Logic.widgetSize(layout, id);
+  const board = $("#dbBoard"), drawer = $("#dbDrawer");
+  const ghost = h("div", { class: "dr-ghost" }, miniFor(id), h("b", { text: c.title }));
+  document.body.append(ghost);
+  const drop = h("div", { class: "db-drop", "aria-hidden": "true" }, h("span", { text: c.title }));
+  drop.style.setProperty("--w", String(size.w));
+  document.body.classList.add("db-adding");
+  let raf = 0, lx = ev.clientX, ly = ev.clientY, over = false;
+  const x0 = lx, y0 = ly;
+  const pos = () => {
+    if (Math.hypot(lx - x0, ly - y0) < 24 && !drop.parentNode) return; // un toque o un arrastre mínimo no añade nada
+    ghost.style.transform = `translate(${lx + 14}px, ${ly + 14}px)`;
+    const br = board.getBoundingClientRect(), dr = drawer.getBoundingClientRect();
+    over = lx >= br.left && lx <= br.right && ly >= 0 && ly <= innerHeight && !(lx >= dr.left && dr.width > 0 && drawer.classList.contains("open") && getComputedStyle(drawer).opacity > 0.9);
+    if (over) { const ref = insertionRef(lx, ly); if (drop.parentNode !== board || drop.nextElementSibling !== ref) flip(board, () => board.insertBefore(drop, ref)); }
+    else if (drop.parentNode) drop.remove();
+  };
+  const move = (e) => {
+    if (e.pointerId !== pid) return;
+    lx = e.clientX; ly = e.clientY; pos();
+    cancelAnimationFrame(raf);
+    const edge = 80, vy = ly < edge ? -14 : ly > innerHeight - edge ? 14 : 0;
+    if (vy) { const tick = () => { window.scrollBy(0, vy); pos(); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); }
+  };
+  const end = (e) => {
+    if (e.pointerId !== pid) return;
+    cancelAnimationFrame(raf);
+    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); window.removeEventListener("pointercancel", end);
+    const ref = drop.parentNode ? drop.nextElementSibling : undefined;
+    const ok = drop.parentNode && e.type === "pointerup";
+    drop.remove(); ghost.remove(); document.body.classList.remove("db-adding");
+    if (ok) addWidget(id, ref && ref.dataset ? ref.dataset.widget : null);
+  };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", end); window.addEventListener("pointercancel", end);
+  pos();
+}
+
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && dashEditing && !document.querySelector("dialog[open]")) { dashEditing = false; applyDashLayout(true); $("#dbCustomize").focus(); } });
+// Al salir del Resumen se cierra el modo edición
+renderers.push(() => { if (dashEditing && currentPage !== "dashboard") { dashEditing = false; applyDashLayout(true); } });
 
 /* ---------- Arrastrar para reordenar (ratón y táctil) ---------- */
 function flip(board, change) {
@@ -399,6 +518,7 @@ function openWidgetConfig(id) {
   openDialog(dlg);
 }
 
+$("#dbDrawerTab").addEventListener("click", () => { drawerCollapsed = !drawerCollapsed; applyDashLayout(true); });
 $("#dbCustomize").addEventListener("click", () => { dashEditing = !dashEditing; applyDashLayout(true); });
 $("#dbLayoutDone").addEventListener("click", () => { dashEditing = false; applyDashLayout(true); $("#dbCustomize").focus(); });
 $("#dbLayoutReset").addEventListener("click", async () => {
