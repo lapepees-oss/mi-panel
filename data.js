@@ -52,6 +52,7 @@ let reloadTimeout = null;
 let pendingTables = new Set(); // tablas pendientes de recargar mientras hay una carga en curso
 let pendingAll = false;
 let lastFullLoad = 0;
+let loadFailed = false; // la última carga falló (los bloques del Resumen muestran «Reintentar»)
 
 const latest = (col) => (q) => q.order(col, { ascending: false }).order("id");
 const oldest = (col) => (q) => q.order(col).order("id");
@@ -104,9 +105,12 @@ async function loadAll(only) {
     const names = wanted ? [...wanted] : Object.keys(LOADERS);
     await Promise.all(names.map((n) => LOADERS[n]()));
     if (!wanted) lastFullLoad = Date.now();
+    loadFailed = false;
     showBanner("");
     renderAll();
   } catch (e) {
+    loadFailed = true;
+    renderAll();
     showBanner(
       "No se pudieron cargar los datos. Si acabas de actualizar la app, ejecuta migracion-v3.sql (y luego single-user.sql) en el SQL Editor de Supabase y recarga. " +
         Logic.dataErrorText(e)

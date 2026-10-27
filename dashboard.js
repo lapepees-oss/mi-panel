@@ -6,7 +6,7 @@
 /* ---------- Frase del día (sustituye al saludo) ----------
  * La frase depende solo de la fecha local (Logic.phraseOfDay): no se guarda nada, así que no cambia al recargar ni al
  * volver a entrar el mismo día y es igual en todos tus dispositivos. Los ajustes viven en este navegador. */
-const phrasePrefsNow = () => Logic.phrasePrefs(store.get("phrase", null));
+const phrasePrefsNow = () => Logic.phrasePrefs((upDash() || {}).phrase ?? store.get("phrase", null)); // por usuario (con el diseño del Resumen)
 let phraseKey = ""; // lo último pintado: si no cambia, no se toca el DOM
 
 function renderPhrase(today) {
@@ -33,7 +33,7 @@ function syncPhraseControls() {
   $("#phDate").checked = p.date; $("#phAccent").checked = p.accent;
 }
 function savePhrase() {
-  store.set("phrase", { show: $("#phShow").checked, style: $("#phStyle").value, length: $("#phLen").value, date: $("#phDate").checked, accent: $("#phAccent").checked });
+  upSet("dash", { ...(upDash() || {}), phrase: { show: $("#phShow").checked, style: $("#phStyle").value, length: $("#phLen").value, date: $("#phDate").checked, accent: $("#phAccent").checked } });
   renderPhrase(todayKey());
 }
 ["phShow", "phStyle", "phLen", "phDate", "phAccent"].forEach((id) => $("#" + id).addEventListener("change", savePhrase));
@@ -107,15 +107,18 @@ function renderDashboard() {
     key: k,
     habits: state.habits.filter((hb) => (byHabit.get(hb.id) || new Set()).has(k)).length,
     tasks: state.tasks.filter((t) => !Logic.isOpen(t) && Logic.dayOfTimestamp(t.completed_at) === k).length,
+    ms: state.sessions.filter((x) => Logic.dayOfTimestamp(x.created_at) === k).reduce((n, x) => n + (Number(x.duration_ms) || 0), 0),
   }));
+  const focusWeek = data.reduce((n, d) => n + d.ms, 0);
+  $("#weeklyFocus").textContent = focusWeek ? `Concentración esta semana: ${Logic.formatDuration(focusWeek)}` : "";
   const max = Math.max(1, ...data.map((d) => d.habits + d.tasks));
-  const any = data.some((d) => d.habits + d.tasks > 0);
+  const any = data.some((d) => d.habits + d.tasks > 0 || d.ms > 0);
   show($("#weeklyEmpty"), !any);
   show($("#weeklyChart"), any);
   $("#weeklyChart").replaceChildren(
     ...data.map((d, i) => {
       const n = d.habits + d.tasks;
-      return h("div", { class: "chart-day" + (d.key === today ? " today" : ""), title: `${Logic.longDate(d.key)}: ${plural(d.habits, "hábito", "hábitos")} y ${plural(d.tasks, "tarea", "tareas")}` },
+      return h("div", { class: "chart-day" + (d.key === today ? " today" : ""), title: `${Logic.longDate(d.key)}: ${plural(d.habits, "hábito", "hábitos")} y ${plural(d.tasks, "tarea", "tareas")}${d.ms ? " · " + Logic.formatDuration(d.ms) + " de concentración" : ""}` },
         h("span", { class: "chart-count", text: String(n) }),
         h("div", { class: "chart-track" }, h("div", { class: "chart-bar", style: `height:${n ? Math.max(6, (n / max) * 100) : 0}%` })),
         h("span", { class: "chart-label", text: WEEKDAY_LETTERS[i] }));
@@ -158,18 +161,49 @@ $("#dbQuoteHistory").addEventListener("click", () => {
 
 renderers.push(renderDashboard);
 
-/* ---------- Personalizar el Resumen: ordenar y ocultar bloques (se guarda en este navegador) ---------- */
+/* ---------- Personalizar el Resumen: tablero libre ----------
+ * Rejilla de 6 columnas. Cada bloque tiene ancho (columnas) y alto (0 = automático, o filas de 72 px).
+ * En modo edición: arrastrar por el asa (⠿), redimensionar por el borde derecho, el inferior o la esquina,
+ * ocultar/mostrar, ajustar (⚙) y añadir desde el catálogo. Todo se guarda por usuario (userprefs.js);
+ * el invitado lo tiene solo en memoria. Los botones ↑ ↓ y el ajuste con listas permiten hacerlo sin ratón.
+ * Pantallas estrechas: una columna (los anchos no se pueden aplicar), pero el orden y el alto sí. */
 
 let dashEditing = false;
-const dashLayoutNow = () => Logic.dashLayout(store.get("dashLayout", null));
+const GAP = 14, ROW_PX = Logic.DASH_ROW, ROW_STEP = ROW_PX + GAP;
+const rowsToPx = (n) => n * ROW_PX + (n - 1) * GAP;
+const guestHidden = () => (isGuest() ? ["suggestion"] : []); // CloudSpace Intelligence es de la cuenta: el invitado no la ve
+const dashLayoutNow = () => {
+  const l = Logic.dashLayout(upDash());
+  for (const id of guestHidden()) if (!l.hidden.includes(id)) l.hidden.push(id);
+  return l;
+};
+const dashRaw = () => ({ ...(upDash() || {}) }); // conserva claves ajenas al diseño (p. ej. la frase del día)
 
-function applyDashLayout() {
+function saveDash(layout) {
+  upSet("dash", { ...dashRaw(), order: layout.order, hidden: layout.hidden.filter((id) => !guestHidden().includes(id)), sizes: layout.sizes, cfg: layout.cfg });
+  applyDashLayout(true);
+}
+
+function widgetTitleEl(el) { return $(":scope > .panel-head h3, :scope > .journal-prompt strong", el); }
+
+function applyWidgetBox(el, layout) {
+  const id = el.dataset.widget, size = Logic.widgetSize(layout, id);
+  el.style.setProperty("--w", String(size.w));
+  el.style.setProperty("--h", String(size.h));
+  el.classList.toggle("has-h", size.h > 0);
+  el.style.height = size.h > 0 ? rowsToPx(size.h) + "px" : "";
+  const cfg = layout.cfg[id] || {}, t = widgetTitleEl(el);
+  if (t) { if (t.dataset.orig === undefined) t.dataset.orig = t.textContent; t.textContent = cfg.title || t.dataset.orig; }
+  el.classList.toggle("compact", cfg.info === "compact");
+  if (t) el.setAttribute("aria-label", t.textContent);
+}
+
+function applyDashLayout(force) {
   const board = $("#dbBoard");
   if (!board) return;
-  const { order, hidden } = dashLayoutNow();
-  // Sin cambios de diseño no se toca el DOM (así no se pierde el foco ni el cursor de la nota rápida en cada repintado)
-  const sig = JSON.stringify([order, hidden, dashEditing]);
-  if (board.dataset.sig === sig) return;
+  const layout = dashLayoutNow(), { order, hidden } = layout;
+  const sig = JSON.stringify([layout, dashEditing, isGuest()]);
+  if (!force && board.dataset.sig === sig) { renderNewWidgets(layout, todayKey()); return; } // sin cambios de diseño no se toca el DOM, pero los bloques de datos sí se refrescan
   board.dataset.sig = sig;
   const els = new Map($$("#dbBoard > .db-widget").map((el) => [el.dataset.widget, el]));
   for (const id of order) {
@@ -177,45 +211,203 @@ function applyDashLayout() {
     if (!el) continue;
     board.append(el); // el orden del DOM es el orden visual (también para teclado y lectores de pantalla)
     el.classList.toggle("is-off", hidden.includes(id));
+    applyWidgetBox(el, layout);
     let tools = el.querySelector(":scope > .db-tools");
-    if (!tools) {
-      tools = h("div", { class: "db-tools" });
-      el.prepend(tools);
+    if (!tools) { tools = h("div", { class: "db-tools" }); el.prepend(tools); }
+    let handles = el.querySelector(":scope > .db-rz-wrap");
+    if (!handles) {
+      handles = h("div", { class: "db-rz-wrap", "aria-hidden": "true" }, ...["e", "s", "se"].map((k) => h("i", { class: "db-rz " + k, "data-rz": k, onpointerdown: (ev) => startResize(ev, el, k) })));
+      el.append(handles);
     }
-    const i = order.indexOf(id), title = el.dataset.title;
-    tools.replaceChildren(
-      h("b", { text: title + (hidden.includes(id) ? " (oculto)" : "") }),
-      h("button", { type: "button", title: "Subir", "aria-label": `Subir «${title}»`, disabled: i === 0, onclick: () => saveDashLayout({ order: Logic.moveWidget(order, id, -1), hidden }, id, "up") }, "↑"),
-      h("button", { type: "button", title: "Bajar", "aria-label": `Bajar «${title}»`, disabled: i === order.length - 1, onclick: () => saveDashLayout({ order: Logic.moveWidget(order, id, 1), hidden }, id, "down") }, "↓"),
-      h("button", { type: "button", "aria-pressed": String(hidden.includes(id)), onclick: () => saveDashLayout({ order, hidden: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id] }, id) }, hidden.includes(id) ? "Mostrar" : "Ocultar")
-    );
+    const i = order.indexOf(id), title = (widgetTitleEl(el) || {}).textContent || el.dataset.title;
+    const vis = order.filter((x) => !hidden.includes(x));
+    const vi = vis.indexOf(id);
+    const grip = h("button", { type: "button", class: "db-grip", title: "Arrastrar para mover", "aria-label": `Mover «${title}» (arrastra, o usa las flechas ↑ ↓ del teclado)`, onpointerdown: (ev) => startDrag(ev, el),
+      onkeydown: (ev) => { if (ev.key === "ArrowUp" || ev.key === "ArrowDown") { ev.preventDefault(); moveBy(id, ev.key === "ArrowUp" ? -1 : 1); } } }, "⠿");
+    tools.replaceChildren(grip, h("b", { text: title + (hidden.includes(id) ? " (oculto)" : "") }),
+      h("button", { type: "button", title: "Subir", "aria-label": `Subir «${title}»`, disabled: vi <= 0, onclick: () => moveBy(id, -1) }, "↑"),
+      h("button", { type: "button", title: "Bajar", "aria-label": `Bajar «${title}»`, disabled: vi < 0 || vi === vis.length - 1, onclick: () => moveBy(id, 1) }, "↓"),
+      h("button", { type: "button", title: "Ajustes del bloque", "aria-label": `Ajustes de «${title}»`, onclick: () => openWidgetConfig(id) }, "⚙"),
+      h("button", { type: "button", title: hidden.includes(id) ? "Mostrar" : "Ocultar", "aria-pressed": String(hidden.includes(id)), "aria-label": `${hidden.includes(id) ? "Mostrar" : "Ocultar"} «${title}»`, onclick: () => toggleWidget(id) }, hidden.includes(id) ? "Mostrar" : "Ocultar"));
   }
-  // Fila "Qué mostrar": una pastilla por bloque para activarlo/ocultarlo de un vistazo (mismo estado que el botón de cada bloque)
-  $("#dbShowRow").replaceChildren(h("span", { class: "db-show-label", text: "Qué mostrar" }),
-    ...order.filter((id) => els.has(id)).map((id) => {
-      const on = !hidden.includes(id);
-      return h("button", { type: "button", class: "db-chip" + (on ? " on" : ""), "aria-pressed": String(on), text: els.get(id).dataset.title,
-        onclick: () => saveDashLayout({ order, hidden: on ? [...hidden, id] : hidden.filter((x) => x !== id) }) });
-    }));
+  renderCatalog(layout, els);
   board.classList.toggle("editing", dashEditing);
   show($("#dbEditBar"), dashEditing);
   const b = $("#dbCustomize");
   b.setAttribute("aria-pressed", String(dashEditing));
   b.textContent = dashEditing ? "⚙ Editando…" : "⚙ Personalizar";
   if (dashEditing) syncPhraseControls();
+  renderNewWidgets(layout, todayKey());
 }
 
-function saveDashLayout(layout, focusId, dir) {
-  store.set("dashLayout", layout);
-  applyDashLayout();
-  // tras mover, el foco sigue en el mismo botón (si ya no puede moverse más, pasa al otro)
-  const el = $(`#dbBoard > .db-widget[data-widget="${focusId}"]`);
-  if (el && dir) { const btns = el.querySelectorAll(".db-tools button"); const t = btns[dir === "up" ? 0 : 1]; (t && !t.disabled ? t : btns[dir === "up" ? 1 : 0]).focus(); }
+function toggleWidget(id) {
+  const l = dashLayoutNow(), off = l.hidden.includes(id);
+  saveDash({ ...l, hidden: off ? l.hidden.filter((x) => x !== id) : [...l.hidden, id] });
+}
+function moveBy(id, dir) {
+  const l = dashLayoutNow(), vis = l.order.filter((x) => !l.hidden.includes(x)), i = vis.indexOf(id), j = i + dir;
+  if (i < 0 || j < 0 || j >= vis.length) return;
+  saveDash({ ...l, order: Logic.placeWidget(l.order, id, dir < 0 ? vis[j] : (l.order[l.order.indexOf(vis[j]) + 1] ?? null)) });
+  const g = $(`#dbBoard > .db-widget[data-widget="${id}"] .db-grip`); if (g) g.focus();
 }
 
-$("#dbCustomize").addEventListener("click", () => { dashEditing = !dashEditing; applyDashLayout(); });
-$("#dbLayoutDone").addEventListener("click", () => { dashEditing = false; applyDashLayout(); $("#dbCustomize").focus(); });
-$("#dbLayoutReset").addEventListener("click", () => { store.set("dashLayout", null); store.set("phrase", null); syncPhraseControls(); renderPhrase(todayKey()); applyDashLayout(); toast("Resumen restablecido."); });
+/* Catálogo: todos los bloques disponibles, con su descripción; añadir/quitar con un botón */
+function renderCatalog(layout, els) {
+  const { order, hidden } = layout;
+  $("#dbShowRow").replaceChildren(...order.filter((id) => els.has(id) && !guestHidden().includes(id)).map((id) => {
+    const on = !hidden.includes(id), c = Logic.DASH_CATALOG[id];
+    return h("div", { class: "db-cat" + (on ? " on" : "") },
+      h("div", {}, h("b", { text: (layout.cfg[id] && layout.cfg[id].title) || c.title }), h("small", { text: c.desc })),
+      h("button", { type: "button", class: "db-chip" + (on ? " on" : ""), "aria-pressed": String(on), "aria-label": `${on ? "Quitar" : "Añadir"} «${c.title}»`, text: on ? "Quitar" : "Añadir", onclick: () => toggleWidget(id) }));
+  }));
+}
+
+/* ---------- Arrastrar para reordenar (ratón y táctil) ---------- */
+function flip(board, change) {
+  const items = $$("#dbBoard > .db-widget:not(.is-off)"), before = new Map(items.map((el) => [el, el.getBoundingClientRect()]));
+  change();
+  if (reducedMotion()) return;
+  for (const el of items) {
+    if (el.classList.contains("dragging")) continue;
+    const a = before.get(el), b = el.getBoundingClientRect(), dx = a.left - b.left, dy = a.top - b.top;
+    if ((dx || dy) && el.animate) el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 220, easing: "cubic-bezier(.2,.75,.25,1)" });
+  }
+}
+
+function startDrag(ev, el) {
+  if (ev.button > 0) return;
+  ev.preventDefault();
+  const board = $("#dbBoard"), id = el.dataset.widget;
+  const pid = ev.pointerId; // se escucha en window: al reordenar el DOM el asa pierde la captura del puntero
+  const r0 = el.getBoundingClientRect();
+  const st = { gx: ev.clientX - r0.left, gy: ev.clientY - r0.top, tx: 0, ty: 0 };
+  el.classList.add("dragging");
+  let raf = 0, lastY = ev.clientY, lastX = ev.clientX;
+  const place = () => {
+    // posición natural = donde estaría sin transformación; el bloque sigue al puntero
+    el.style.transform = "none";
+    const nat = el.getBoundingClientRect();
+    st.tx = lastX - st.gx - nat.left; st.ty = lastY - st.gy - nat.top;
+    el.style.transform = `translate(${st.tx}px,${st.ty}px)`;
+  };
+  const move = (e) => {
+    if (e.pointerId !== pid) return;
+    lastX = e.clientX; lastY = e.clientY;
+    place();
+    // ¿sobre qué bloque está el puntero?
+    el.style.pointerEvents = "none";
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    el.style.pointerEvents = "";
+    const other = under && under.closest("#dbBoard > .db-widget:not(.is-off)");
+    if (other && other !== el) {
+      const rr = other.getBoundingClientRect();
+      const before = e.clientY < rr.top + rr.height / 2 || (e.clientY < rr.bottom && e.clientX < rr.left + rr.width / 2);
+      const ref = before ? other : other.nextElementSibling;
+      if (ref !== el && el.nextElementSibling !== ref) { flip(board, () => board.insertBefore(el, ref)); place(); }
+    }
+    // desplazamiento automático cerca de los bordes de la ventana
+    cancelAnimationFrame(raf);
+    const edge = 70, vy = lastY < edge ? -14 : lastY > innerHeight - edge ? 14 : 0;
+    if (vy) { const tick = () => { window.scrollBy(0, vy); place(); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); }
+  };
+  const end = (e) => {
+    if (e && e.pointerId !== pid) return;
+    cancelAnimationFrame(raf);
+    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); window.removeEventListener("pointercancel", end);
+    el.classList.remove("dragging"); el.style.transform = "";
+    const domOrder = $$("#dbBoard > .db-widget").map((x) => x.dataset.widget);
+    const l = dashLayoutNow();
+    saveDash({ ...l, order: domOrder });
+    const g = $(`#dbBoard > .db-widget[data-widget="${id}"] .db-grip`); if (g) g.focus();
+  };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", end); window.addEventListener("pointercancel", end);
+}
+
+/* ---------- Redimensionar por bordes y esquina (ratón y táctil) ---------- */
+function startResize(ev, el, kind) {
+  if (ev.button > 0) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const handle = ev.currentTarget, id = el.dataset.widget, board = $("#dbBoard");
+  handle.setPointerCapture(ev.pointerId);
+  const layout = dashLayoutNow(), cur = Logic.widgetSize(layout, id), bw = board.clientWidth;
+  const narrow = matchMedia("(max-width: 760px)").matches;
+  const colW = (bw + GAP) / 6;
+  const start = { w: cur.w, hPx: el.offsetHeight + GAP };
+  const x0 = ev.clientX, y0 = ev.clientY;
+  let size = cur;
+  el.classList.add("resizing");
+  const move = (e) => {
+    const dx = kind === "s" || narrow ? 0 : e.clientX - x0, dy = kind === "e" ? 0 : e.clientY - y0;
+    size = Logic.sizeFromDrag(id, start, dx, dy, colW, ROW_STEP);
+    if (kind === "e") size = { ...size, h: cur.h };
+    if (kind === "s" || narrow) size = { ...size, w: cur.w };
+    el.style.setProperty("--w", String(size.w)); el.style.setProperty("--h", String(size.h));
+    el.style.height = size.h > 0 ? rowsToPx(size.h) + "px" : "";
+    el.classList.toggle("has-h", size.h > 0);
+  };
+  const end = () => {
+    handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", end); handle.removeEventListener("pointercancel", end);
+    el.classList.remove("resizing");
+    saveDash({ ...layout, sizes: { ...layout.sizes, [id]: size } });
+  };
+  handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", end); handle.addEventListener("pointercancel", end);
+}
+
+/* ---------- Ajustes de un bloque (ventana) ---------- */
+function openWidgetConfig(id) {
+  const l = dashLayoutNow(), c = Logic.DASH_CATALOG[id], cfg = { ...(l.cfg[id] || {}) }, size = Logic.widgetSize(l, id);
+  const el = $(`#dbBoard > .db-widget[data-widget="${id}"]`), hasTitle = !!widgetTitleEl(el);
+  const dlg = $("#sheet-dialog");
+  const sel = (opts, value, label) => { const s = h("select", { "aria-label": label }, ...opts.map(([v, t]) => h("option", { value: String(v), selected: String(v) === String(value), text: t }))); return s; };
+  const title = h("input", { type: "text", maxlength: "60", value: cfg.title || "", placeholder: c.title, "aria-label": "Título del bloque" });
+  const wSel = sel(Array.from({ length: c.max - c.min + 1 }, (_, i) => [c.min + i, `${c.min + i} de 6 columnas`]), size.w, "Ancho");
+  const hSel = sel([[0, "Automático"], ...Array.from({ length: Logic.DASH_MAX_ROWS }, (_, i) => [i + 1, `${i + 1} ${i ? "filas" : "fila"}`])], size.h, "Alto");
+  const info = sel([["", "Completa"], ["compact", "Compacta (sin descripciones)"]], cfg.info || "", "Información");
+  const fields = [];
+  if (hasTitle) fields.push(h("label", {}, "Título", title));
+  fields.push(h("label", {}, "Ancho", wSel), h("label", {}, "Alto", hSel), h("label", {}, "Información", info));
+  let goalSel = null, periodSel = null;
+  if (id === "goal" || id === "saving") {
+    goalSel = sel([["", state.goals.length ? "La primera meta" : "No hay metas todavía"], ...state.goals.map((g) => [g.id, g.name])], cfg.goal || "", "Objetivo mostrado");
+    fields.push(h("label", {}, "Objetivo mostrado", goalSel));
+  }
+  if (id === "stats") {
+    periodSel = sel([[7, "Últimos 7 días"], [30, "Últimos 30 días"], [90, "Últimos 90 días"]], cfg.period || 7, "Periodo");
+    fields.push(h("label", {}, "Periodo", periodSel));
+  }
+  const save = () => {
+    const next = { ...(l.cfg) };
+    const nc = { title: title.value, info: info.value, goal: goalSel ? goalSel.value : cfg.goal, period: periodSel ? Number(periodSel.value) : cfg.period };
+    const clean = Logic.dashLayout({ order: l.order, cfg: { [id]: nc } }).cfg[id];
+    if (clean) next[id] = clean; else delete next[id];
+    saveDash({ ...l, cfg: next, sizes: { ...l.sizes, [id]: Logic.clampWidgetSize(id, { w: wSel.value, h: hSel.value }) } });
+    closeDialog(dlg);
+  };
+  const restore = () => {
+    const next = { ...l.cfg }, sizes = { ...l.sizes };
+    delete next[id]; delete sizes[id];
+    saveDash({ ...l, cfg: next, sizes });
+    closeDialog(dlg);
+    toast("Bloque restablecido.");
+  };
+  dlg.replaceChildren(h("div", { class: "sheet wcfg" },
+    h("h2", { style: "margin-top:0", text: `Ajustes · ${c.title}` }), h("p", { class: "muted", text: c.desc }),
+    h("div", { class: "wcfg-fields" }, ...fields),
+    h("div", { class: "row", style: "justify-content:space-between;margin-top:14px;gap:8px;flex-wrap:wrap" },
+      h("button", { type: "button", class: "secondary", text: "Restablecer bloque", onclick: restore }),
+      h("span", {}, h("button", { type: "button", class: "secondary", text: "Cancelar", onclick: () => closeDialog(dlg) }), " ", h("button", { type: "button", class: "primary-btn", text: "Guardar", onclick: save })))));
+  openDialog(dlg);
+}
+
+$("#dbCustomize").addEventListener("click", () => { dashEditing = !dashEditing; applyDashLayout(true); });
+$("#dbLayoutDone").addEventListener("click", () => { dashEditing = false; applyDashLayout(true); $("#dbCustomize").focus(); });
+$("#dbLayoutReset").addEventListener("click", async () => {
+  if (!(await askConfirm({ title: "¿Restablecer el Resumen?", text: "Se recupera el diseño original: orden, tamaños, bloques visibles y ajustes. Tus datos no cambian.", confirmLabel: "Restablecer" }))) return;
+  upSet("dash", null);
+  syncPhraseControls(); phraseKey = ""; renderPhrase(todayKey());
+  applyDashLayout(true);
+  toast("Resumen restablecido.");
+});
 
 /* ---------- Barra de tiempo: usa el MISMO temporizador de la página Tiempo (una sola fuente de verdad) ----------
  * No hay un segundo reloj ni otro setInterval por modo: los botones delegan en los de la página Tiempo (iniciar,

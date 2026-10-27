@@ -7,9 +7,9 @@ const CLAUDE_URL = "https://claude.ai/new"; // dirección oficial; no se usa nin
 const CAT_FILTERS = [["all", "Todas"], ["tareas", "Tareas"], ["habitos", "Hábitos"], ["finanzas", "Finanzas"], ["objetivos", "Objetivos"]];
 let itFilter = "all";
 let showDismissed = false;
-const cloud = { open: false, min: false, expanded: new Set() };
+const cloud = { open: false, expanded: new Set() }; // un único botón alterna abrir/cerrar; el estado (tarjetas desplegadas, scroll) se conserva
 try { Object.assign(cloud, JSON.parse(sessionStorage.getItem("itCloud") || "{}"), { expanded: new Set() }); } catch (_) {}
-const saveCloud = () => { try { sessionStorage.setItem("itCloud", JSON.stringify({ open: cloud.open, min: cloud.min })); } catch (_) {} };
+const saveCloud = () => { try { sessionStorage.setItem("itCloud", JSON.stringify({ open: cloud.open })); } catch (_) {} };
 
 const intelData = () => ({ today: todayKey(), habits: state.habits, byHabit: habitDays(), tasks: state.tasks, lists: state.lists, goals: state.goals, transactions: state.transactions, budgets: state.budgets, sessions: state.sessions });
 const intelAnalysis = () => Intel.analyze(intelData());
@@ -223,14 +223,16 @@ $("#itRestore").addEventListener("click", () => { showDismissed = !showDismissed
 
 function renderCloud(active, analysis) {
   const fab = $("#itCloud"), win = $("#itWindow");
-  fab.classList.toggle("hidden", !active || !user);
-  if (!active || !user) { win.classList.add("hidden"); return; }
+  const allowed = active && user && !isGuest(); // el invitado no ve la nube: Intelligence es una función de la cuenta
+  fab.classList.toggle("hidden", !allowed);
+  if (!allowed) { win.classList.add("hidden"); return; }
   const dis = dismissals();
   const cards = analysis.cards.filter((c) => !dis[c.id]);
   $(".it-dot", fab).classList.toggle("hidden", !cards.some((c) => c.severity >= 3));
   win.classList.toggle("hidden", !cloud.open);
-  win.classList.toggle("min", cloud.min);
-  fab.setAttribute("aria-expanded", String(cloud.open && !cloud.min));
+  fab.setAttribute("aria-expanded", String(cloud.open));
+  fab.setAttribute("aria-label", cloud.open ? "Cerrar CloudSpace Intelligence" : "Abrir CloudSpace Intelligence");
+  fab.title = cloud.open ? "Cerrar CloudSpace Intelligence" : "Abrir CloudSpace Intelligence";
   if (!cloud.open) return;
   const body = $("#itWinBody");
   const scroll = body.scrollTop;
@@ -241,19 +243,12 @@ function renderCloud(active, analysis) {
           h("summary", { text: c.title }), h("p", { text: c.problem }), h("p", { class: "muted", text: c.recommendation })))
       : [h("p", { class: "muted", text: analysis.summary.hasData ? "Nada que destacar ahora mismo." : "Cuando registres datos, aquí aparecerán observaciones." })]),
     h("div", { class: "it-win-actions" },
-      h("button", { type: "button", class: "secondary small", onclick: () => { location.hash = "#/intelligence"; cloud.min = true; saveCloud(); renderIntelligence(); } }, "Abrir Intelligence"),
+      h("button", { type: "button", class: "secondary small", onclick: () => { location.hash = "#/intelligence"; cloud.open = false; saveCloud(); renderIntelligence(); } }, "Abrir Intelligence"),
       rulesOnly() ? null : h("button", { type: "button", class: "primary-btn small", onclick: () => openReport("full") }, "Analizar con Claude Pro")));
   body.scrollTop = scroll;
 }
-$("#itCloud").addEventListener("click", () => {
-  if (cloud.open && !cloud.min) cloud.min = true; // la nube alterna entre ventana y minimizada
-  else { cloud.open = true; cloud.min = false; }
-  saveCloud();
-  renderIntelligence();
-});
-$("#itWinMin").addEventListener("click", () => { cloud.min = !cloud.min; saveCloud(); renderIntelligence(); });
-$("#itWinClose").addEventListener("click", () => { cloud.open = false; saveCloud(); renderIntelligence(); $("#itCloud").focus(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cloud.open && !cloud.min && !document.querySelector("dialog[open]")) { cloud.open = false; saveCloud(); renderIntelligence(); } });
+$("#itCloud").addEventListener("click", () => { cloud.open = !cloud.open; saveCloud(); renderIntelligence(); }); // botón único: abre y cierra sin perder el estado
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cloud.open && !document.querySelector("dialog[open]")) { cloud.open = false; saveCloud(); renderIntelligence(); } });
 
 /* ---------- Ajustes (zona del propietario) ---------- */
 

@@ -655,12 +655,12 @@ test("habitStartDay: la creación o el primer registro, lo que ocurra antes", ()
 test("dashLayout: valores por defecto, ids desconocidos/repetidos y bloques nuevos", () => {
   const d = L.dashLayout(null);
   assert.deepEqual(d.order, L.DASH_WIDGETS);
-  assert.deepEqual(d.hidden, []);
+  assert.deepEqual(d.hidden, L.DASH_WIDGETS.filter((id) => !L.DASH_CATALOG[id].on)); // los bloques del catálogo nuevos arrancan ocultos
   const x = L.dashLayout({ order: ["note", "zzz", "timer", "note"], hidden: ["tasks", "tasks", "nope"] });
   assert.deepEqual(x.order.slice(0, 2), ["note", "timer"]);
   assert.equal(x.order.length, L.DASH_WIDGETS.length);
   assert.equal(new Set(x.order).size, x.order.length);
-  assert.deepEqual(x.hidden, ["tasks"]);
+  assert.ok(x.hidden.includes("tasks") && !x.hidden.includes("nope") && x.hidden.filter((i) => i === "tasks").length === 1);
   assert.deepEqual(L.dashLayout("basura").order, L.DASH_WIDGETS);
 });
 
@@ -810,4 +810,51 @@ test("la colección de frases es válida y no atribuye citas a nadie", () => {
   }
   for (const s of ["filosofico", "motivacional", "reflexivo"]) assert.ok(PHRASES.filter((p) => p.s === s).length >= 8);
   assert.equal(new Set(PHRASES.map((p) => p.t)).size, PHRASES.length);
+});
+
+/* ---------- Panel del Resumen: catálogo, tamaños, orden y estadísticas ---------- */
+
+test("dashLayout normaliza: ids desconocidos, tamaños y textos; los bloques nuevos del catálogo arrancan ocultos", () => {
+  const d = L.dashLayout(null);
+  assert.equal(d.order.length, L.DASH_WIDGETS.length);
+  assert.ok(d.hidden.includes("next") && d.hidden.includes("stats") && !d.hidden.includes("tasks"));
+  const e = L.dashLayout({ order: ["note", "zzz", "tasks", "note"], hidden: ["tasks", "nope"], sizes: { tasks: { w: 99, h: -3 }, quote: { w: 1 } }, cfg: { tasks: { title: "  Mis   tareas ", info: "compact" }, heat: { title: "" } } });
+  assert.deepEqual(e.order.slice(0, 2), ["note", "tasks"]);
+  assert.ok(e.hidden.includes("tasks") && !e.hidden.includes("nope"));
+  assert.deepEqual(e.sizes.tasks, { w: 6, h: 0 });
+  assert.equal(e.sizes.quote.w, 2); // mínimo del catálogo
+  assert.deepEqual(e.cfg.tasks, { title: "Mis tareas", info: "compact" });
+  assert.equal(e.cfg.heat, undefined);
+});
+
+test("placeWidget y sizeFromDrag", () => {
+  assert.deepEqual(L.placeWidget(["a", "b", "c"], "c", "a"), ["c", "a", "b"]);
+  assert.deepEqual(L.placeWidget(["a", "b", "c"], "a", null), ["b", "c", "a"]);
+  assert.deepEqual(L.placeWidget(["a", "b"], "zz", "a"), ["a", "b"]);
+  const s = L.sizeFromDrag("tasks", { w: 3, h: 0, hPx: 300 }, 250, 0, 160);
+  assert.equal(s.w, 5);
+  assert.equal(L.sizeFromDrag("tasks", { w: 3, h: 0, hPx: 100 }, -9999, 9999, 160).w, 2); // no baja del mínimo
+  assert.equal(L.sizeFromDrag("tasks", { w: 3, h: 0, hPx: 100 }, 9999, 9999, 160).w, 6); // no pasa del máximo
+  assert.equal(L.sizeFromDrag("tasks", { w: 3, h: 0, hPx: 100 }, 0, 9999, 160).h, L.DASH_MAX_ROWS);
+});
+
+test("dayActivity y periodTotals respetan los días programados", () => {
+  const hb = [{ id: "a", created_at: "2026-10-01T10:00:00", frequency: "Personalizada:0,2,4" }];
+  const by = new Map([["a", new Set(["2026-10-26", "2026-10-28"])]]);
+  const keys = ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"];
+  const tasks = [{ status: "done", done: true, completed_at: "2026-10-27T10:00:00" }, { status: "todo" }];
+  const ses = [{ created_at: "2026-10-28T09:00:00", duration_ms: 600000 }, { created_at: "2026-10-20T09:00:00", duration_ms: 1 }];
+  const rows = L.dayActivity(hb, by, tasks, ses, keys);
+  assert.deepEqual(rows.map((r) => r.due), [1, 0, 1, 0, 1]); // lun, mié, vie
+  assert.equal(rows[1].pct, null); // martes: no tocaba
+  assert.equal(rows[0].pct, 100);
+  const t = L.periodTotals(rows);
+  assert.deepEqual([t.habits, t.tasks, t.ms, t.due, t.doneDue, t.pct], [2, 1, 600000, 3, 2, 67]);
+});
+
+test("savingMilestones: hitos cada 25 % derivados del importe", () => {
+  const m = L.savingMilestones(2000, 1250);
+  assert.equal(m.pct, 62); assert.equal(m.reached, 2); assert.equal(m.next.pct, 75); assert.equal(m.next.amount, 1500); assert.equal(m.left, 750);
+  assert.equal(L.savingMilestones(0, 5).next, null);
+  assert.equal(L.savingMilestones(100, 100).next, null);
 });

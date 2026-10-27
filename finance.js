@@ -27,7 +27,17 @@ function fillCategorySelect(sel, list, keep) {
 
 /* ---------- Pintado ---------- */
 
-function meterRow({ name, limit, spent, left, pct, over }, onDelete, onEdit) {
+// Categorías de presupuesto con su lista de movimientos desplegada (se conserva al repintar)
+const openBudgetCats = new Set();
+
+// Movimientos de gasto de una categoría en el mes: son exactamente los que suman en "gastado" (monthTotals), sin duplicar
+function categoryMoves(category, month) {
+  return state.transactions
+    .filter((t) => t.type === "expense" && t.category === category && Logic.monthKey(t.tx_date) === month)
+    .sort((a, b) => (a.tx_date < b.tx_date ? 1 : a.tx_date > b.tx_date ? -1 : 0));
+}
+
+function meterRow({ name, limit, spent, left, pct, over }, onDelete, onEdit, moves = null) {
   const cls = "meter" + (over ? " over" : pct >= 80 ? " warn" : "");
   return h("div", { class: "meter-row" },
     h("div", { class: "meter-head" }, h("strong", { text: name }),
@@ -37,8 +47,31 @@ function meterRow({ name, limit, spent, left, pct, over }, onDelete, onEdit) {
         h("button", { type: "button", class: "icon-btn", title: "Quitar", "aria-label": `Quitar presupuesto ${name}`, text: "✕", onclick: onDelete }))),
     h("div", { class: cls, role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct), "aria-label": `${name}: ${pct}% gastado` }, h("span", { style: `width:${pct}%` })),
     h("div", { class: "meter-foot" }, h("span", { text: `${pct}% gastado` }),
-      h("span", { text: over ? `Te has pasado ${Logic.formatEUR(-left)}` : `Quedan ${Logic.formatEUR(left)}` })));
+      h("span", { text: over ? `Te has pasado ${Logic.formatEUR(-left)}` : `Quedan ${Logic.formatEUR(left)}` })),
+    moves ? movesPanel(name, moves) : null);
 }
+
+// «Ver movimientos» de una categoría: concepto, fecha e importe. Se despliega con una transición suave.
+function movesPanel(name, moves) {
+  const isOpen = openBudgetCats.has(name);
+  const id = "bm-" + name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const btn = h("button", { type: "button", class: "link-button meter-toggle", "aria-expanded": String(isOpen), "aria-controls": id,
+    text: isOpen ? "Ocultar movimientos" : `Ver movimientos (${moves.length})`,
+    onclick: () => {
+      const open = !openBudgetCats.has(name);
+      open ? openBudgetCats.add(name) : openBudgetCats.delete(name);
+      btn.setAttribute("aria-expanded", String(open));
+      btn.textContent = open ? "Ocultar movimientos" : `Ver movimientos (${moves.length})`;
+      box.classList.toggle("open", open);
+    } });
+  const list = moves.length
+    ? h("ul", { class: "meter-moves" }, ...moves.map((t) => h("li", {}, h("span", { class: "mm-concept", text: t.title }), h("small", { text: Logic.shortDate(t.tx_date) }), h("strong", { text: Logic.formatEUR(Logic.centsFromDb(t.amount)) }))))
+    : h("p", { class: "meter-moves-empty", text: "Aún no hay movimientos de esta categoría este mes." });
+  const box = h("div", { class: "meter-moves-wrap" + (isOpen ? " open" : ""), id }, h("div", { class: "meter-moves-inner" }, list));
+  return h("div", { class: "meter-extra" }, btn, box);
+}
+
+let trendAnimate = false; // true justo después de cambiar 6/12 meses
 
 function renderFinance() {
   const mk = shownMonth();
@@ -74,7 +107,7 @@ function renderFinance() {
   $("#budgetCategory").options[0].text = "Total mensual";
   const rows = [];
   if (bs.total) rows.push(meterRow({ name: "Total mensual", ...bs.total }, () => removeBudget(""), () => editBudget("")));
-  for (const c of bs.categories) rows.push(meterRow({ name: c.category, ...c }, () => removeBudget(c.category), () => editBudget(c.category)));
+  for (const c of bs.categories) rows.push(meterRow({ name: c.category, ...c }, () => removeBudget(c.category), () => editBudget(c.category), categoryMoves(c.category, mk)));
   $("#budgetList").replaceChildren(...(rows.length ? rows : [h("p", { class: "empty-state", text: "Sin presupuestos. Elige «Total mensual» o una categoría y pon un límite." })]));
 
   // Gastos por categoría
@@ -96,6 +129,7 @@ function renderFinance() {
   const top = Math.max(1, ...series.flatMap((s) => [s.income, s.expense]));
   $("#trendChart").setAttribute("aria-label", `Ingresos y gastos de los últimos ${range} meses: ` + series.map((s) => `${Logic.monthLabel(s.month)}, ingresos ${Logic.formatEUR(s.income)}, gastos ${Logic.formatEUR(s.expense)}`).join("; "));
   $("#trendChart").style.gridTemplateColumns = `repeat(${series.length}, minmax(0, 1fr))`;
+  const animate = trendAnimate; trendAnimate = false; // las barras crecen desde 0 solo cuando cambias de periodo
   $("#trendChart").replaceChildren(
     ...series.map((s) => {
       const [y, m] = s.month.split("-").map(Number);
@@ -107,6 +141,13 @@ function renderFinance() {
         h("span", { class: "trend-label", text: short }));
     })
   );
+  if (animate && !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+    const bars = $$("#trendChart .trend-bars span");
+    const target = bars.map((b) => b.style.height);
+    bars.forEach((b) => (b.style.height = "0%"));
+    void $("#trendChart").offsetWidth;
+    requestAnimationFrame(() => bars.forEach((b, i) => (b.style.height = target[i])));
+  }
 
   renderTransactions(mk);
   renderGoals();
@@ -463,3 +504,12 @@ $("#sheet-dialog").addEventListener("click", (e) => {
 });
 
 renderers.push(renderFinance);
+
+// Selector segmentado 6/12 meses: mantiene el valor en #finRange (el resto del código lo lee de ahí) y anima las barras
+$$("#page-finance .seg-range button").forEach((b) => b.addEventListener("click", () => {
+  if ($("#finRange").value === b.dataset.range) return;
+  $("#finRange").value = b.dataset.range;
+  $$("#page-finance .seg-range button").forEach((x) => { const on = x === b; x.classList.toggle("active", on); x.setAttribute("aria-pressed", String(on)); });
+  trendAnimate = true;
+  renderFinance();
+}));

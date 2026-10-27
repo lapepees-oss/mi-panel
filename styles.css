@@ -610,3 +610,20 @@ textarea.wiz-input { font-size: 16px; line-height: 1.5; }
 .primary-btn, button.secondary, .file-btn, .link-button { transition: background-color .18s ease, border-color .18s ease, filter .18s ease, transform .12s ease; }
 button.secondary:active:not(:disabled), .link-button:active { transform: scale(.985); }
 .hb-card-item, .db-metric { transition: border-color .18s ease, transform .18s ease; }
+
+/* Tareas: detalles desplegables dentro de la propia lista (grid-template-rows para animar la altura sin saltos) */
+.task-expand { flex: none; width: 30px; height: 30px; border: 0; background: transparent; color: var(--muted); border-radius: 9px; display: grid; place-items: center; align-self: flex-start; }
+.task-expand:hover { background: var(--surface3); color: var(--text); }
+.task-expand .ico { width: 16px; height: 16px; transition: transform .25s var(--ease-out); }
+.task-expand[aria-expanded="true"] .ico { transform: rotate(180deg); }
+.td-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s var(--ease-out); }
+.td-wrap.open { grid-template-rows: 1fr; }
+.td-inner { overflow: hidden; min-height: 0; }
+.td-wrap.open .td-inner { padding-top: 8px; }
+.td-notes { margin: 0 0 8px; color: var(--text); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.td-steps { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.td-steps label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.td-steps li.done span { text-decoration: line-through; color: var(--muted); }
+.td-steps input[type=checkbox] { width: 16px; height: 16px; }
+.td-facts, .td-empty { margin: 0 0 6px; color: var(--muted); font-size: 12.5px; }
+.td-open { padding: 4px 0; font-size: 12.5px; }

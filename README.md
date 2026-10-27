@@ -29,7 +29,7 @@ Espacio personal privado, instalable como PWA: **resumen con mapa de constancia 
 - No se conecta a bancos: los movimientos se escriben a mano.
 
 ## Puesta en marcha
-1. **Supabase > SQL Editor**, en este orden (una vez): `schema.sql` → `migracion-v2.sql` → `migracion-v3.sql` → `migracion-v4.sql` → `migracion-v5.sql` → `migracion-v6.sql` → `migracion-v7.sql` → `single-user.sql` (edita tu correo dentro; este último es el que bloquea los datos a tu cuenta). Si ya los tenías, ejecuta solo `migracion-v4.sql` (nuevo cronómetro, categorías/frecuencia/color de hábitos y tabla `ideas`) `migracion-v5.sql` (Intelligence) `migracion-v6.sql` (suscripciones) y `migracion-v7.sql` (estado «En revisión») y vuelve a ejecutar `single-user.sql`.
+1. **Supabase > SQL Editor**, en este orden (una vez): `schema.sql` → `migracion-v2.sql` → `migracion-v3.sql` → `migracion-v4.sql` → `migracion-v5.sql` → `migracion-v6.sql` → `migracion-v7.sql` → `migracion-v8.sql` → `migracion-v9.sql` → `single-user.sql` (edita tu correo dentro; este último es el que bloquea los datos a tu cuenta). Si ya los tenías, ejecuta solo `migracion-v4.sql` (nuevo cronómetro, categorías/frecuencia/color de hábitos y tabla `ideas`) `migracion-v5.sql` (Intelligence) `migracion-v6.sql` (suscripciones) y `migracion-v7.sql` (estado «En revisión») y vuelve a ejecutar `single-user.sql`.
 2. **`config.js`:** pega `SUPABASE_URL` y `SUPABASE_ANON_KEY` (Project Settings > API). Opcionales: `ALLOW_SIGNUP` (true para mostrar "Crear cuenta"), `GOOGLE_LOGIN` (true para el botón de Google), `ALLOWED_EMAIL` (solo aviso en pantalla).
 3. **Supabase > Authentication > URL Configuration:** pon como *Site URL* y en *Redirect URLs* la dirección de la app (p. ej. `https://lapepees-oss.github.io/mi-panel/`). Sin esto fallan la recuperación de contraseña y Google.
 4. **Google (opcional):** Authentication > Providers > Google, con credenciales de Google Cloud; luego `GOOGLE_LOGIN: true`.
@@ -42,7 +42,7 @@ git push
 ```
 
 ## Estructura
-`index.html` (páginas y diálogos) · `styles.css`, `pages.css` (estilos por página), `login.css` · `logic.js` (lógica pura, probada en Node) · `quotes.js` (citas) · `phrases.js` (frase del día: reflexiones originales sin firma) · `intel.js` (motor de reglas de Intelligence, probado en Node) · `intelligence.js` (interfaz) · `core.js` (estado, utilidades) · `data.js` (Supabase) · `auth.js` · `app.js` (rutas) · `dashboard.js`, `habits.js`, `tasks.js`, `journal.js`, `finance.js`, `timer.js`, `prefs.js` · `sw.js`, `manifest.webmanifest`, `icons/`.
+`index.html` (páginas y diálogos) · `styles.css`, `pages.css` (estilos por página), `login.css` · `logic.js` (lógica pura, probada en Node) · `quotes.js` (citas) · `phrases.js` (frase del día: reflexiones originales sin firma) · `intel.js` (motor de reglas de Intelligence, probado en Node) · `intelligence.js` (interfaz) · `core.js` (estado, utilidades) · `data.js` (Supabase) · `auth.js` · `app.js` (rutas) · `userprefs.js` (preferencias por usuario) · `texts.js` (textos editables) · `widgets.js` (bloques nuevos del Resumen) · `dashboard.js`, `habits.js`, `tasks.js`, `journal.js`, `finance.js`, `timer.js`, `prefs.js` · `sw.js`, `manifest.webmanifest`, `icons/`.
 
 ## Pruebas
 ```bash
@@ -59,3 +59,10 @@ Cubre fechas locales, dinero en céntimos, rachas, vistas de tareas, CSV, import
 ## Movimientos con concepto y nota (migración v8)
 
 Todos los movimientos (gastos e ingresos) piden un **concepto** obligatorio (no vacío, máx. 120 caracteres) y admiten una **nota** opcional (máx. 300). La nota requiere `migracion-v8.sql` (añade la columna `transactions.note`; no toca datos existentes). Los movimientos antiguos conservan su título como concepto. El campo «Tarea (opcional)» del cronómetro se eliminó; la etiqueta libre de la sesión sigue disponible.
+
+## Resumen libre, textos editables y preferencias por usuario (migración v9)
+- **Resumen:** pulsa «Personalizar». Cada bloque se **arrastra por el asa ⠿** (ratón o dedo; con teclado, flechas ↑ ↓ sobre el asa), se **redimensiona** desde el borde derecho, el inferior o la esquina (rejilla de 6 columnas; alto automático o por filas; en móvil una columna y solo el alto), se oculta/muestra y tiene ajustes ⚙ (título, ancho, alto, información compacta, objetivo mostrado, periodo). El **catálogo** lista 18 bloques; los 9 nuevos (Próxima acción, Presupuesto por categorías, Objetivo activo e hitos, Tiempo de concentración, Notas rápidas y calendario, Próximos pagos, Objetivo de ahorro, Estadísticas personales y Sugerencia contextual) solo muestran datos que ya registraste y tienen estados de carga, vacío y error.
+- **Guardado por usuario:** diseño y textos van a la tabla `user_prefs` (`migracion-v9.sql`) con caché local por id de usuario; dos cuentas en el mismo navegador no se mezclan. Si no ejecutaste v9, funciona con la caché local y avisa. El **invitado** lo tiene solo en memoria y nunca escribe en la caché ni en la base de ninguna cuenta; no ve la Sugerencia contextual ni la nube de Intelligence.
+- **Textos editables:** Preferencias > «Editar textos». Solo textos fijos con id estable (menús, títulos, botones; ver `texts.js`); nunca valores dinámicos. «Restaurar» devuelve el original exacto.
+- **Nube de Intelligence:** un único botón la abre y la cierra y conserva su estado.
+- **Límites conocidos:** no existe un modelo de objetivos con hitos propios (los hitos son cada 25 % de una meta de ahorro) ni una tabla de eventos de calendario (el bloque usa vencimientos de tareas).

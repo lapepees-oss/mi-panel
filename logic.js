@@ -288,6 +288,7 @@
   function inView(view, t, today) {
     if (view === "inbox") return isOpen(t) && !t.list_id;
     if (view === "today") return isOpen(t) && !!t.due_date && t.due_date <= today;
+    if (view === "overdue") return isOpen(t) && !!t.due_date && t.due_date < today;
     if (view === "upcoming") return isOpen(t) && !!t.due_date && t.due_date > today;
     if (view === "pending") return isOpen(t);
     if (view === "done") return !isOpen(t);
@@ -332,9 +333,9 @@
   }
 
   function viewCounts(tasks, today) {
-    const c = { inbox: 0, today: 0, upcoming: 0, pending: 0, done: 0, lists: {} };
+    const c = { inbox: 0, today: 0, upcoming: 0, overdue: 0, pending: 0, done: 0, lists: {} };
     for (const t of tasks) {
-      for (const v of ["inbox", "today", "upcoming", "pending", "done"]) if (inView(v, t, today)) c[v]++;
+      for (const v of ["inbox", "today", "upcoming", "overdue", "pending", "done"]) if (inView(v, t, today)) c[v]++;
       if (t.list_id && isOpen(t)) c.lists[t.list_id] = (c.lists[t.list_id] || 0) + 1;
     }
     return c;
@@ -716,17 +717,71 @@
 
   /* ================= Resumen personalizable ================= */
 
-  const DASH_WIDGETS = ["metrics", "timer", "tasks", "heat", "week", "activity", "finance", "quote", "note"];
+  /* Catálogo de bloques del Resumen. w = columnas por defecto (rejilla de 6), min/max = límites de ancho, h = alto mínimo por
+   * defecto en filas de 72 px (0 = automático). `on` = visible en el panel inicial; el resto solo aparece si lo añades. */
+  const DASH_CATALOG = {
+    metrics:    { title: "Métricas", desc: "Tareas, hábitos de hoy, objetivos semanales y balance", w: 6, min: 3, max: 6, on: true },
+    timer:      { title: "Cronómetro y temporizador", desc: "Barra compacta de tiempo", w: 6, min: 4, max: 6, on: true },
+    tasks:      { title: "Próximas tareas", desc: "Vencidas, de hoy y próximas", w: 3, min: 2, max: 6, on: true },
+    heat:       { title: "Mapa de constancia", desc: "Cumplimiento de hábitos por día", w: 6, min: 3, max: 6, on: true },
+    week:       { title: "Resumen semanal", desc: "Hábitos de la semana", w: 3, min: 2, max: 6, on: true },
+    activity:   { title: "Actividad semanal", desc: "Hábitos, tareas y concentración de la semana", w: 3, min: 2, max: 6, on: true },
+    finance:    { title: "Finanzas del mes", desc: "Ingresos, gastos y presupuesto restante", w: 3, min: 2, max: 6, on: true },
+    quote:      { title: "Filosofía del día", desc: "Cita de autor del día", w: 3, min: 2, max: 6, on: true },
+    note:       { title: "Nota rápida", desc: "Nota de hoy que se guarda sola", w: 6, min: 2, max: 6, on: true },
+    next:       { title: "Próxima acción", desc: "La tarea que más merece atención ahora", w: 2, min: 2, max: 6, on: false },
+    budget:     { title: "Presupuesto por categorías", desc: "Gastado, límite y movimientos de cada categoría", w: 3, min: 2, max: 6, on: false },
+    goal:       { title: "Objetivo activo e hitos", desc: "Objetivo de ahorro elegido y su próximo hito", w: 2, min: 2, max: 6, on: false },
+    focus:      { title: "Tiempo de concentración", desc: "Hoy y esta semana, con acceso al cronómetro", w: 3, min: 2, max: 6, on: false },
+    notes:      { title: "Notas rápidas y calendario", desc: "Ideas recientes y próximos vencimientos", w: 3, min: 2, max: 6, on: false },
+    payments:   { title: "Próximos pagos", desc: "Suscripciones y fechas de cobro", w: 2, min: 2, max: 6, on: false },
+    saving:     { title: "Objetivo de ahorro", desc: "Meta, acumulado y lo que falta", w: 2, min: 2, max: 6, on: false },
+    stats:      { title: "Estadísticas personales", desc: "Hábitos, tareas y concentración por periodo", w: 3, min: 2, max: 6, on: false },
+    suggestion: { title: "Sugerencia contextual", desc: "Observación breve de CloudSpace Intelligence", w: 3, min: 2, max: 6, on: false },
+  };
+  const DASH_WIDGETS = Object.keys(DASH_CATALOG);
+  const DASH_ROW = 72; // px por fila de alto mínimo
+  const DASH_MAX_ROWS = 12;
 
-  // Normaliza el diseño guardado: ignora ids desconocidos o repetidos y añade al final los que falten (p. ej. bloques nuevos)
-  function dashLayout(saved, ids = DASH_WIDGETS) {
-    const order = [], seen = new Set();
-    const src = saved && Array.isArray(saved.order) ? saved.order : [];
-    for (const id of src) if (ids.includes(id) && !seen.has(id)) { seen.add(id); order.push(id); }
-    for (const id of ids) if (!seen.has(id)) order.push(id);
-    const hidden = (saved && Array.isArray(saved.hidden) ? saved.hidden : []).filter((id, i, a) => ids.includes(id) && a.indexOf(id) === i);
-    return { order, hidden };
+  const clampInt = (v, lo, hi, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+
+  // Tamaño válido de un bloque: ancho dentro de sus límites y alto 0 (automático) a DASH_MAX_ROWS
+  function clampWidgetSize(id, size) {
+    const c = DASH_CATALOG[id];
+    if (!c) return null;
+    const s = size || {};
+    return { w: clampInt(s.w, c.min, c.max, c.w), h: clampInt(s.h, 0, DASH_MAX_ROWS, 0) };
   }
+
+  const cleanText = (v, max) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+
+  // Normaliza el diseño guardado: ignora ids desconocidos o repetidos, añade los que falten (los nuevos del catálogo quedan
+  // ocultos hasta que los añadas), limita tamaños y limpia la configuración de cada bloque.
+  function dashLayout(saved, ids = DASH_WIDGETS) {
+    const sv = saved && typeof saved === "object" ? saved : {};
+    const order = [], seen = new Set();
+    for (const id of Array.isArray(sv.order) ? sv.order : []) if (ids.includes(id) && !seen.has(id)) { seen.add(id); order.push(id); }
+    const fresh = ids.filter((id) => !seen.has(id));
+    for (const id of fresh) order.push(id);
+    let hidden = (Array.isArray(sv.hidden) ? sv.hidden : []).filter((id, i, a) => ids.includes(id) && a.indexOf(id) === i);
+    // Sin diseño guardado, los bloques que no son del panel inicial arrancan ocultos; con diseño guardado, los nuevos también
+    for (const id of fresh) if (DASH_CATALOG[id] && !DASH_CATALOG[id].on && !hidden.includes(id)) hidden.push(id);
+    const sizes = {}, cfg = {};
+    for (const id of ids) {
+      const raw = sv.sizes && sv.sizes[id];
+      if (raw) sizes[id] = clampWidgetSize(id, raw);
+      const c = sv.cfg && sv.cfg[id];
+      if (c && typeof c === "object") {
+        const title = cleanText(c.title, 60), info = c.info === "compact" ? "compact" : "", goal = typeof c.goal === "string" ? c.goal.slice(0, 64) : "";
+        const period = [7, 30, 90].includes(Number(c.period)) ? Number(c.period) : 0;
+        if (title || info || goal || period) cfg[id] = { ...(title ? { title } : {}), ...(info ? { info } : {}), ...(goal ? { goal } : {}), ...(period ? { period } : {}) };
+      }
+    }
+    return { order, hidden, sizes, cfg };
+  }
+
+  // Tamaño efectivo (guardado o el del catálogo)
+  const widgetSize = (layout, id) => (layout.sizes && layout.sizes[id]) || clampWidgetSize(id, {});
 
   // Mueve un bloque una posición (dir = -1 sube, +1 baja). Devuelve una lista nueva; en los extremos no cambia nada.
   function moveWidget(order, id, dir) {
@@ -735,6 +790,61 @@
     const out = order.slice();
     [out[i], out[j]] = [out[j], out[i]];
     return out;
+  }
+
+  // Coloca `id` justo antes de `beforeId` (o al final si es null). Sirve para arrastrar y soltar.
+  function placeWidget(order, id, beforeId) {
+    if (!order.includes(id) || id === beforeId) return order.slice();
+    const out = order.filter((x) => x !== id);
+    const at = beforeId == null ? -1 : out.indexOf(beforeId);
+    if (at < 0) out.push(id); else out.splice(at, 0, id);
+    return out;
+  }
+
+  // Ancho y alto a partir del arrastre del borde: colW = ancho de una columna con su hueco, rowH = alto de una fila
+  function sizeFromDrag(id, start, dx, dy, colW, rowH = DASH_ROW) {
+    const w = start.w + Math.round(dx / Math.max(1, colW));
+    const hStart = start.hPx != null ? start.hPx : (start.h || 1) * rowH;
+    const h = Math.round((hStart + dy) / rowH);
+    return clampWidgetSize(id, { w, h: h < 1 ? 0 : h });
+  }
+
+  /* ---------- Estadísticas del Resumen (solo datos registrados) ---------- */
+
+  // Una entrada por día: hábitos marcados, tareas completadas, milisegundos de concentración y porcentaje de hábitos
+  // programados que se cumplieron ese día (null si ese día no tocaba ninguno).
+  function dayActivity(habits, byHabit, tasks, sessions, keys) {
+    const idx = new Map(keys.map((k, i) => [k, i]));
+    const out = keys.map((key) => ({ key, habits: 0, tasks: 0, ms: 0, due: 0, doneDue: 0 }));
+    for (const hb of habits) {
+      const days = byHabit.get(hb.id) || new Set(), fr = habitFrequency(hb), start = habitStartDay(hb, days);
+      for (const e of out) {
+        const did = days.has(e.key);
+        if (did) e.habits++;
+        if (e.key >= start && habitDueOn(fr, e.key)) { e.due++; if (did) e.doneDue++; }
+      }
+    }
+    for (const t of tasks) { const k = t.done || !isOpen(t) ? dayOfTimestamp(t.completed_at) : null; if (k && idx.has(k)) out[idx.get(k)].tasks++; }
+    for (const s of sessions) { const k = dayOfTimestamp(s.created_at); if (k && idx.has(k)) out[idx.get(k)].ms += Number(s.duration_ms) || 0; }
+    for (const e of out) e.pct = e.due ? Math.round((e.doneDue / e.due) * 100) : null;
+    return out;
+  }
+
+  const sumBy = (rows, f) => rows.reduce((a, r) => a + f(r), 0);
+
+  // Resumen de un periodo: totales y cumplimiento de hábitos (hechos / programados)
+  function periodTotals(rows) {
+    const due = sumBy(rows, (r) => r.due), doneDue = sumBy(rows, (r) => r.doneDue);
+    return { habits: sumBy(rows, (r) => r.habits), tasks: sumBy(rows, (r) => r.tasks), ms: sumBy(rows, (r) => r.ms), due, doneDue, pct: due ? Math.round((doneDue / due) * 100) : null };
+  }
+
+  // Hitos de un objetivo de ahorro: cada 25 % del importe (derivados del importe, no son datos nuevos)
+  function savingMilestones(target, current) {
+    const t = Number(target) || 0, c = Math.max(0, Number(current) || 0);
+    if (t <= 0) return { pct: 0, next: null, reached: 0, left: 0, marks: [] };
+    const marks = [25, 50, 75, 100].map((p) => ({ pct: p, amount: Math.round(t * p) / 100, reached: c >= (t * p) / 100 }));
+    const next = marks.find((m) => !m.reached) || null;
+    return { pct: Math.min(100, Math.floor((c / t) * 100)), next, reached: marks.filter((m) => m.reached).length, left: Math.max(0, Math.round((t - c) * 100) / 100), marks };
   }
 
   /* ================= Calendario mensual (diario) ================= */
@@ -1085,7 +1195,7 @@
     addInterval, nextOccurrence, normalizeTags, wordCount,
     SESSION_KINDS, sessionKindLabel, formatDuration, sessionStats, pctChange, countdownMs, splitHms,
     SUB_CYCLES, SUB_STATUS, subCycle, subStatus, subYearlyCents, subMonthlyCents, addMonthsToDay, addCycle, nextCharge, subSummary,
-    DASH_WIDGETS, dashLayout, moveWidget, habitStartDay, HABIT_CATEGORIES, HABIT_FREQUENCIES, WEEKDAY_SHORT, WEEKDAY_FULL, FREQ_LABELS, freqToken, parseFreq, freqLabel, HABIT_COLORS, HABIT_COLOR_NAMES, HABIT_ICONS, habitCategory, habitFrequency, habitColor,
+    DASH_CATALOG, DASH_WIDGETS, DASH_ROW, DASH_MAX_ROWS, dashLayout, moveWidget, placeWidget, clampWidgetSize, widgetSize, sizeFromDrag, dayActivity, periodTotals, savingMilestones, habitStartDay, HABIT_CATEGORIES, HABIT_FREQUENCIES, WEEKDAY_SHORT, WEEKDAY_FULL, FREQ_LABELS, freqToken, parseFreq, freqLabel, HABIT_COLORS, HABIT_COLOR_NAMES, HABIT_ICONS, habitCategory, habitFrequency, habitColor,
     habitDueOn, habitWeekTarget, habitStatusToday, habitStreak, habitBestStreak, habitWeekProgress, weekSummary, habitHeatRows,
     monthGrid, greeting, tagCounts, PHRASE_STYLES, PHRASE_LENGTHS, PHRASE_DEFAULTS, phrasePrefs, phraseOfDay,
     timerPhase, clock, csvText, buildTransactionsCsv, buildBackup, legacyFromStorage, parseCloudspaceBackup, planImport,

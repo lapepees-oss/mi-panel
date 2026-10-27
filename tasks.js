@@ -8,12 +8,13 @@
 const PRIORITIES = [["1", "P1 · Urgente"], ["2", "P2 · Alta"], ["3", "P3 · Media"], ["4", "P4 · Normal"]];
 const STATUSES = [["todo", "Pendiente"], ["doing", "En progreso"], ["review", "En revisión"], ["done", "Completado"]];
 const REPEATS = [["", "No se repite"], ["daily", "Cada día"], ["weekly", "Cada semana"], ["monthly", "Cada mes"]];
-const BASE_VIEWS = [["inbox", "Bandeja de entrada"], ["today", "Hoy"], ["upcoming", "Próximas"], ["pending", "Pendientes"], ["done", "Completadas"]];
+const BASE_VIEWS = [["inbox", "Bandeja de entrada"], ["today", "Hoy"], ["upcoming", "Próximas"], ["overdue", "Vencidas"], ["pending", "Pendientes"], ["done", "Completadas"]];
 const PRIO_TEXT = { 1: "Urgente", 2: "Alta", 3: "Media" };
 const EMPTY_TEXT = {
   inbox: "La bandeja está vacía. Aquí caen las tareas sin proyecto.",
   today: "Nada para hoy ni vencido. Buen momento para respirar.",
   upcoming: "No hay tareas con fecha futura.",
+  overdue: "No tienes tareas vencidas. Todo al día.",
   pending: "No tienes tareas pendientes. Escribe la primera arriba.",
   done: "Todavía no has completado ninguna tarea.",
   list: "Este proyecto no tiene tareas.",
@@ -307,13 +308,59 @@ function taskMeta(t, { compact = false } = {}) {
   return h("div", { class: "meta" }, bits);
 }
 
+// Tareas con los detalles desplegados dentro de la lista (se conserva al repintar)
+const expandedTasks = new Set();
+
+// Bloque de detalles: notas, pasos (se pueden marcar), proyecto, etiquetas, fecha y repetición. Sin salir de la lista.
+function taskDetails(t) {
+  const steps = stepsOfTask(t.id);
+  const ln = listName(t.list_id);
+  const rows = [];
+  if (t.notes) rows.push(h("p", { class: "td-notes", text: t.notes }));
+  if (steps.length) rows.push(h("ul", { class: "td-steps" }, ...steps.map((s) => h("li", { class: s.done ? "done" : "" },
+    h("label", {}, h("input", { type: "checkbox", checked: s.done, "aria-label": `Paso: ${s.title}`, onclick: (e) => e.stopPropagation(),
+      onchange: (e) => mutate(() => (s.done = e.target.checked), () => run(db.from("task_steps").update({ done: e.target.checked }).eq("id", s.id))) }), h("span", { text: s.title }))))));
+  const facts = [];
+  if (ln) facts.push("Proyecto: " + ln);
+  if (t.due_date) facts.push("Fecha límite: " + Logic.longDate(t.due_date));
+  facts.push("Prioridad: " + (PRIORITIES.find((p) => p[0] === String(Logic.prioOf(t))) || [, "Normal"])[1]);
+  facts.push("Estado: " + (STATUSES.find((s) => s[0] === (t.status || (t.done ? "done" : "todo"))) || [, "Pendiente"])[1]);
+  const rec = REPEATS.find((r) => r[0] === (t.recurrence || ""));
+  if (rec && rec[0]) facts.push(rec[1]);
+  if ((t.tags || []).length) facts.push((t.tags || []).map((g) => "#" + g).join(" "));
+  rows.push(h("p", { class: "td-facts", text: facts.join(" · ") }));
+  if (!t.notes && !steps.length) rows.push(h("p", { class: "td-empty", text: "Sin notas ni pasos. Ábrela para añadir detalles." }));
+  rows.push(h("button", { type: "button", class: "link-button td-open", text: "Abrir ficha completa", onclick: (e) => { e.stopPropagation(); openTask(t.id); } }));
+  return rows;
+}
+
 function taskItem(t, opts = {}) {
   const cb = h("input", {
     type: "checkbox", checked: !Logic.isOpen(t), "aria-label": `Completar «${t.title}»`,
     onclick: (e) => e.stopPropagation(),
     onchange: (e) => setStatus(t.id, e.target.checked ? "done" : "todo"),
   });
+  const expandable = !opts.compact;
+  const isOpenDet = expandable && expandedTasks.has(t.id);
+  const detId = "td-" + t.id;
   const body = h("div", { class: "body" }, h("div", { class: "title", text: t.title }), taskMeta(t, opts));
+  let toggle = null;
+  if (expandable) {
+    const box = h("div", { class: "td-wrap" + (isOpenDet ? " open" : ""), id: detId }, h("div", { class: "td-inner" }, ...(isOpenDet ? taskDetails(t) : [])));
+    toggle = h("button", { type: "button", class: "task-expand", "aria-expanded": String(isOpenDet), "aria-controls": detId,
+      title: "Ver detalles", "aria-label": `Detalles de «${t.title}»`,
+      onclick: (e) => {
+        e.stopPropagation();
+        const open = !expandedTasks.has(t.id);
+        open ? expandedTasks.add(t.id) : expandedTasks.delete(t.id);
+        toggle.setAttribute("aria-expanded", String(open));
+        box.firstChild.replaceChildren(...(open ? taskDetails(t) : []));
+        box.classList.toggle("open", open);
+      },
+      onkeydown: (e) => e.stopPropagation() });
+    toggle.innerHTML = '<svg class="ico" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    body.append(box);
+  }
   const menu = h("button", {
     type: "button", class: "task-menu-btn", title: "Acciones", "aria-label": `Acciones de «${t.title}»`, "aria-haspopup": "menu",
     onclick: (e) => { e.stopPropagation(); openTaskMenu(t, e.currentTarget); },
@@ -329,7 +376,7 @@ function taskItem(t, opts = {}) {
         openTask(t.id);
       }
     },
-  }, cb, body, menu);
+  }, cb, body, toggle, menu);
 }
 
 // Menú de acciones de una tarea (Editar abre el detalle; Duplicar y Eliminar actúan sobre la tarea real)
