@@ -310,9 +310,19 @@ function rippleWidget(el) {
   el.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
   el.classList.remove("just-added"); void el.offsetWidth; el.classList.add("just-added");
   if (reducedMotion()) { setTimeout(() => el.classList.remove("just-added"), 1200); return; }
+  // Capa superior: las ondas viven en <body> (position: fixed), no dentro del widget, así ningún borde ni widget vecino las recorta.
+  // Siguen al widget cada fotograma (mientras la página se desplaza hasta él).
   const wave = h("div", { class: "db-ripple", "aria-hidden": "true" }, ...[0, 1, 2, 3].map((i) => h("i", { style: `animation-delay:${i * 0.22}s` })));
-  el.append(wave);
-  setTimeout(() => { wave.remove(); el.classList.remove("just-added"); }, 2600);
+  document.body.append(wave);
+  let alive = true;
+  const follow = () => {
+    if (!alive) return;
+    const r = el.getBoundingClientRect();
+    Object.assign(wave.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+    requestAnimationFrame(follow);
+  };
+  follow();
+  setTimeout(() => { alive = false; wave.remove(); el.classList.remove("just-added"); }, 2700);
 }
 
 // Añade (o recoloca) un widget: lo muestra, lo pone antes de `beforeId` (o al final) y lanza el efecto de ondas

@@ -636,12 +636,10 @@
             <div id="phase-next" class="muted phase-next"></div>
 
             <div id="opt-timer" class="timer-options hidden">
-              <div class="hms" role="group" aria-label="Duración de la cuenta atrás">
-                <label><input id="cd-h" type="number" min="0" max="24" inputmode="numeric" aria-label="Horas"><span>h</span></label>
-                <label><input id="cd-m" type="number" min="0" max="59" inputmode="numeric" aria-label="Minutos"><span>min</span></label>
-                <label><input id="cd-s" type="number" min="0" max="59" inputmode="numeric" aria-label="Segundos"><span>s</span></label>
-              </div>
-              <div class="adjust"><button type="button" id="cd-minus" aria-label="Restar un minuto">−</button><span class="adjust-copy">Ajustar duración<strong id="cd-label">00:25:00</strong></span><button type="button" id="cd-plus" aria-label="Añadir un minuto">+</button></div>
+              <div class="adjust"><button type="button" id="cd-minus" aria-label="Restar un minuto">−</button><span class="adjust-copy">Ajustar duración
+                <button type="button" class="adjust-value" id="cd-label" title="Pulsa para escribir horas, minutos y segundos" aria-label="Editar la duración: horas, minutos y segundos">00:25:00</button>
+                <span class="adjust-edit hidden" id="cd-edit" role="group" aria-label="Duración de la cuenta atrás"><input id="cd-h" type="number" min="0" max="24" inputmode="numeric" aria-label="Horas"><b>:</b><input id="cd-m" type="number" min="0" max="59" inputmode="numeric" aria-label="Minutos"><b>:</b><input id="cd-s" type="number" min="0" max="59" inputmode="numeric" aria-label="Segundos"></span>
+              </span><button type="button" id="cd-plus" aria-label="Añadir un minuto">+</button></div>
             </div>
 
             <div id="opt-pomodoro" class="timer-options hidden">

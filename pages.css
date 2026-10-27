@@ -632,7 +632,7 @@ body.db-adding, body.db-adding * { cursor: grabbing !important; user-select: non
 
 /* Efecto «gota en el agua» al añadir un widget */
 #page-dashboard .db-widget.just-added { animation: db-drop-in .75s var(--ease-out, ease) both; z-index: 25; }
-.db-ripple { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+.db-ripple { position: fixed; pointer-events: none; z-index: 120; }
 .db-ripple i { position: absolute; inset: 0; border: 2px solid var(--primary); border-radius: 18px; opacity: 0; animation: db-ripple 1.9s cubic-bezier(.15, .6, .3, 1) both; box-shadow: 0 0 16px color-mix(in srgb, var(--primary) 45%, transparent); }
 /* Nacen en el borde del widget y se expanden hacia fuera (el interior queda libre), como las ondas de una gota */
 @keyframes db-ripple { 0% { inset: 0; opacity: .9; border-width: 3px; } 100% { inset: -78px; opacity: 0; border-width: 1px; border-radius: 52px; } }
@@ -640,7 +640,6 @@ body.db-adding, body.db-adding * { cursor: grabbing !important; user-select: non
 #page-dashboard .db-widget.just-added.has-h { overflow: visible; }
 @media (prefers-reduced-motion: reduce) { .db-drawer, .db-drawer.open { transition: none; } .db-ripple i, #page-dashboard .db-widget.just-added { animation: none; } #page-dashboard .db-widget.just-added { outline: 2px solid var(--primary); } }
 
-#page-dashboard { overflow-x: clip; }
 
 .dr-tab { position: fixed; z-index: 76; top: 50%; right: min(92vw, 360px); transform: translateY(-50%); width: 26px; height: 64px; border: 1px solid var(--line2, var(--line)); border-right: 0; border-radius: 12px 0 0 12px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 18px; box-shadow: -8px 0 24px rgba(0, 0, 0, .3); transition: right .38s var(--ease-out, ease); }
 .dr-tab.hidden { display: none; }
@@ -648,3 +647,16 @@ body.dr-collapsed .dr-tab { right: 0; }
 body.dr-collapsed #page-dashboard { margin-right: 0 !important; }
 body.db-adding .dr-tab { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .dr-tab { transition: none; } }
+
+/* Duración editable en el propio control «Ajustar duración» (mismo diseño, sin recuadros extra) */
+.adjust-copy { position: relative; }
+.adjust-value { display: block; margin: 0 auto; border: 0; background: none; padding: 0 4px; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; cursor: text; border-bottom: 1px dashed transparent; transition: border-color .2s, color .2s; }
+.adjust-value:hover:not(:disabled), .adjust-value:focus-visible { border-bottom-color: var(--primary); color: var(--primary); }
+.adjust-value:disabled { cursor: default; }
+.adjust-edit { display: flex; align-items: center; justify-content: center; gap: 2px; margin-top: 1px; }
+.adjust-edit.hidden { display: none; }
+.adjust-edit input { width: 34px; padding: 0 2px; border: 0; border-bottom: 2px solid var(--primary); border-radius: 0; background: transparent; text-align: center; font: 700 13px var(--font); color: var(--text); font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; box-shadow: none; }
+.adjust-edit input::-webkit-outer-spin-button, .adjust-edit input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.adjust-edit input:focus { outline: none; background: var(--primary-soft); }
+.adjust-edit b { color: var(--muted); font-size: 13px; }
+.adjust.editing { border-color: var(--primary); }

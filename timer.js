@@ -1,3 +1,30 @@
+// Editar la duración en el propio control: pulsa el tiempo y escribe h, min y s (Enter o salir del campo = aplicar, Esc = cancelar)
+let cdEditing = false;
+function openCdEdit() {
+  if (cdEditing || state.timer.running || elapsed() > 0) return;
+  cdEditing = true;
+  const cd = Logic.splitHms(targetMs());
+  $("#cd-h").value = String(cd.h); $("#cd-m").value = String(cd.m); $("#cd-s").value = String(cd.s);
+  show($("#cd-label"), false); show($("#cd-edit"), true);
+  $("#cd-edit").closest(".adjust").classList.add("editing");
+  const first = cd.h ? $("#cd-h") : $("#cd-m");
+  first.focus(); first.select();
+}
+function closeCdEdit(apply) {
+  if (!cdEditing) return;
+  cdEditing = false;
+  if (apply) applyCountdown(Logic.countdownMs($("#cd-h").value, $("#cd-m").value, $("#cd-s").value));
+  show($("#cd-edit"), false); show($("#cd-label"), true);
+  $("#cd-edit").closest(".adjust").classList.remove("editing");
+  renderTimer();
+}
+$("#cd-label").addEventListener("click", openCdEdit);
+$("#cd-edit").addEventListener("focusin", (e) => { if (e.target.matches("input")) e.target.select(); });
+$("#cd-edit").addEventListener("focusout", (e) => { if (!$("#cd-edit").contains(e.relatedTarget)) closeCdEdit(true); });
+$("#cd-edit").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); closeCdEdit(true); $("#cd-label").focus(); }
+  else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeCdEdit(false); $("#cd-label").focus(); }
+});
 "use strict";
 // Cronómetro, temporizador, Pomodoro y rutinas encadenadas.
 // Se guarda la hora de inicio y el tiempo acumulado, no los segundos que han pasado. Así el contador no
@@ -378,10 +405,11 @@ function renderTimer() {
   const cd = Logic.splitHms(targetMs());
   for (const [id, v] of [["cd-h", cd.h], ["cd-m", cd.m], ["cd-s", cd.s]]) {
     const el = $("#" + id);
-    if (document.activeElement !== el) el.value = String(v);
+    if (!cdEditing) el.value = String(v);
     el.disabled = !idle;
   }
-  $("#cd-minus").disabled = $("#cd-plus").disabled = !idle;
+  $("#cd-minus").disabled = $("#cd-plus").disabled = $("#cd-label").disabled = !idle;
+  if (!idle && cdEditing) closeCdEdit(false);
   $("#cd-label").textContent = fmt(targetMs());
 
   // Pomodoro
@@ -518,7 +546,7 @@ function tickTimer() {
     disp.textContent = fmt(Math.max(0, rem) + (t.running ? 999 : 0));
     setRing(target > 0 ? (ms / target) * 100 : 0);
     lastPhaseKey = null;
-    $("#phase-next").textContent = target > 0 ? `Duración: ${Logic.formatDuration(target)}` : "";
+    $("#phase-next").textContent = "";
     document.title = t.running ? `${fmtShort(Math.max(0, rem) + 999)} · Cloudspace` : pageTitle();
     if (t.running && target > 0 && rem <= 0) finishCountdown();
     else note(`⏳ Temporizador · quedan ${Logic.clock(Math.max(0, rem) + 999)}`, t.label ? t.label : "Cuenta atrás en marcha", "countdown");
