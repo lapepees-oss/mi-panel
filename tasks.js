@@ -209,19 +209,19 @@ $("#task-search").addEventListener("input", (e) => {
   taskUI.q = e.target.value;
   renderTasks();
 });
-$("#task-filter-label").addEventListener("change", (e) => {
-  taskUI.label = e.target.value;
-  renderTasks();
-});
-$("#task-filter-prio").addEventListener("change", (e) => {
-  taskUI.prio = e.target.value;
-  renderTasks();
-});
-$("#task-sort").addEventListener("change", (e) => {
-  taskUI.sort = e.target.value;
-  saveUI();
-  renderTasks();
-});
+// Un solo botón «Filtros»: abre un menú con etiqueta, prioridad y orden. Se cierra al pulsar fuera o con Escape.
+let filterOpen = false;
+function setFilterOpen(open, focusBtn) {
+  filterOpen = open;
+  $("#task-filter-pop").hidden = !open;
+  $("#task-filter-btn").setAttribute("aria-expanded", String(open));
+  if (!open && focusBtn) $("#task-filter-btn").focus();
+  if (open) $("#task-filter-pop").scrollIntoView({ block: "nearest" });
+}
+$("#task-filter-btn").addEventListener("click", () => setFilterOpen(!filterOpen));
+// composedPath: al elegir una opción el menú se repinta y el botón pulsado ya no está en el DOM
+document.addEventListener("click", (e) => { if (filterOpen && !e.composedPath().includes($(".filter-menu"))) setFilterOpen(false); });
+document.addEventListener("keydown", (e) => { if (filterOpen && e.key === "Escape") setFilterOpen(false, true); });
 $$("#task-mode button").forEach((b) =>
   b.addEventListener("click", () => {
     taskUI.mode = b.dataset.mode;
@@ -251,9 +251,10 @@ function renderTaskStats() {
   $("#tkPending").textContent = String(counts.pending);
   $("#tkToday").textContent = String(counts.today);
   $("#tkDone").textContent = String(counts.done);
-  const q = quoteOfDay(todayKey(), 3);
-  $("#tkQuote").textContent = "“" + q.text + "”";
-  $("#tkQuoteBy").textContent = q.by ? "— " + q.by : "";
+  const tkTotal = counts.pending + counts.done;
+  setBar("tkPendingBar", tkTotal ? (counts.pending / tkTotal) * 100 : 0);
+  setBar("tkTodayBar", counts.pending ? (counts.today / counts.pending) * 100 : 0);
+  setBar("tkDoneBar", tkTotal ? (counts.done / tkTotal) * 100 : 0);
 }
 
 function renderChips() {
@@ -277,14 +278,27 @@ function renderChips() {
   );
 }
 
+const SORT_OPTS = [["smart", "Orden inteligente"], ["due", "Fecha límite"], ["priority", "Prioridad"], ["created", "Más recientes"], ["alpha", "A-Z"]];
+const PRIO_OPTS = [["", "Todas"], ["1", "P1 · Urgente"], ["2", "P2 · Alta"], ["3", "P3 · Media"], ["4", "P4 · Normal"]];
+
 function renderTaskControls() {
   const labels = [...new Set(state.tasks.flatMap((t) => t.tags || []))].sort((a, b) => a.localeCompare(b, "es"));
   if (taskUI.label && !labels.includes(taskUI.label)) taskUI.label = "";
-  const fl = $("#task-filter-label");
-  fl.replaceChildren(h("option", { value: "", text: "Toda etiqueta" }), ...labels.map((g) => h("option", { value: g, text: "#" + g })));
-  fl.value = taskUI.label;
-  $("#task-filter-prio").value = taskUI.prio;
-  $("#task-sort").value = taskUI.sort;
+  const opt = (key, text, active, onpick) => h("button", {
+    type: "button", class: "fm-opt" + (active ? " active" : ""), "aria-pressed": String(active), "data-opt": key,
+    onclick: () => { onpick(); renderTasks(); const el = $(`#task-filter-pop [data-opt="${CSS.escape(key)}"]`); if (el) el.focus(); },
+  }, h("span", { class: "fm-dot", "aria-hidden": "true" }), text);
+  const group = (id, title, ...opts) => h("div", { class: "fm-group", role: "group", "aria-labelledby": id }, h("div", { class: "fm-title", id, text: title }), ...opts);
+  const active = (taskUI.label ? 1 : 0) + (taskUI.prio ? 1 : 0);
+  $("#task-filter-pop").replaceChildren(
+    group("fm-t-label", "Etiqueta", opt("label:", "Todas", !taskUI.label, () => { taskUI.label = ""; }),
+      ...labels.map((g) => opt("label:" + g, "#" + g, taskUI.label === g, () => { taskUI.label = g; }))),
+    group("fm-t-prio", "Prioridad", ...PRIO_OPTS.map(([v, l]) => opt("prio:" + v, l, taskUI.prio === v, () => { taskUI.prio = v; }))),
+    group("fm-t-sort", "Ordenar por", ...SORT_OPTS.map(([v, l]) => opt("sort:" + v, l, taskUI.sort === v, () => { taskUI.sort = v; saveUI(); }))),
+    active ? h("button", { type: "button", class: "link-button fm-clear", text: "Quitar filtros", onclick: () => { taskUI.label = ""; taskUI.prio = ""; renderTasks(); } }) : null);
+  const n = $("#task-filter-n");
+  n.hidden = !active; n.textContent = String(active);
+  $("#task-filter-btn").title = "Orden: " + (SORT_OPTS.find(([v]) => v === taskUI.sort) || SORT_OPTS[0])[1];
   $$("#task-mode button").forEach((b) => b.classList.toggle("active", b.dataset.mode === taskUI.mode));
 }
 

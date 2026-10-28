@@ -2,6 +2,7 @@
 <html lang="es" data-theme="dark">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0c0d14">
   <meta name="color-scheme" content="dark light">
@@ -11,17 +12,14 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@200;300;400;500&display=swap">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="login.css">
   <link rel="stylesheet" href="pages.css">
+  <link rel="stylesheet" href="mix.css">
+  <link rel="stylesheet" href="minimal.css">
   <!-- Aplica el tema antes de pintar para evitar parpadeos (oscuro por defecto) -->
-  <script>
-    try {
-      var t = JSON.parse(localStorage.getItem("mipanel.theme"));
-      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
-    } catch (_) {}
-  </script>
+  <script src="theme.js"></script>
 </head>
 <body>
   <div id="boot" class="boot" role="status">Cargando tu espacio…</div>
@@ -46,6 +44,9 @@
       <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
       <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
       <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 12a8 8 0 108-8H7M7 1v6h6" transform="translate(0 1)"/></symbol>
+      <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
       <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
@@ -61,6 +62,7 @@
       <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 01-10 0c0-2 1-3 2-4 .3 1.6 1 2.2 1.8 2.2C11 8.5 11 5.5 12 3z"/></symbol>
       <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
       <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.5V4.5h8l9 9-8 8-9-9z"/><circle cx="8" cy="9" r="1"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9.5 12l2 2 3.5-4"/></symbol>
       <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 01-.6-8.96A6 6 0 0118 10.5 3.75 3.75 0 0117.25 18H7z"/></symbol>
       <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></symbol>
       <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
@@ -173,7 +175,9 @@
           <a href="#/journal" data-page="journal"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
           <a href="#/finance" data-page="finance"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
           <a href="#/timer" data-page="timer"><svg class="ico"><use href="#i-timer"/></svg><span>Cronómetro</span></a>
-          <a href="#/intelligence" data-page="intelligence" data-intel class="hidden"><svg class="ico"><use href="#i-cloud"/></svg><span>Intelligence</span></a>
+          <a href="#/plan" data-page="plan"><svg class="ico"><use href="#i-target"/></svg><span>Plan</span><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em></a>
+          <a href="#/intelligence" data-page="intelligence" data-intel class="hidden"><svg class="ico"><use href="#i-cloud"/></svg><span>Intelligence</span><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em></a>
+          <a href="#/admin" data-page="admin" data-admin class="hidden"><svg class="ico"><use href="#i-shield"/></svg><span>Administración</span></a>
         </nav>
       </div>
       <div class="sidebar-bottom">
@@ -210,16 +214,8 @@
       <!-- RESUMEN -->
       <section class="page" id="page-dashboard" aria-labelledby="h-dashboard">
         <header class="db-hero">
-          <!-- Frase del día: sustituye al saludo. El <h1> es la propia frase (el título accesible de la página) -->
-          <div class="db-phrase" id="dbPhrase">
-            <h1 id="h-dashboard"><span id="dbPhraseText"></span></h1>
-            <p class="db-phrase-note" id="dbPhraseNote"></p>
-            <p class="db-date" id="dbDate"></p>
-          </div>
-          <div class="db-actions" aria-label="Acciones rápidas">
-            <button type="button" class="primary-btn" id="dbNewTask">+ Nueva tarea</button>
-            <button type="button" class="secondary" id="dbNewHabit">+ Nuevo hábito</button>
-            <button type="button" class="secondary" id="dbNewNote">✎ Escribir nota</button>
+          <div class="page-intro db-intro"><h1 id="h-dashboard">Resumen</h1></div>
+          <div class="db-actions">
             <button type="button" class="secondary" id="dbCustomize" aria-pressed="false">⚙ Personalizar</button>
           </div>
         </header>
@@ -227,10 +223,10 @@
         <div class="db-board" id="dbBoard">
         <div class="db-widget" data-widget="metrics" data-title="Métricas">
   <section class="db-metrics" aria-label="Métricas">
-            <a class="db-metric" href="#/tasks"><span class="db-ico"><svg class="ico"><use href="#i-task"/></svg></span><div><small>Tareas pendientes</small><strong id="dbTasks">0</strong><em id="dbTasksFoot"></em></div></a>
-            <a class="db-metric" href="#/habits"><span class="db-ico mint"><svg class="ico"><use href="#i-habit"/></svg></span><div><small>Hábitos de hoy</small><strong id="dbHabits">0/0</strong><em id="dbHabitsFoot"></em></div></a>
-            <a class="db-metric" href="#/habits"><span class="db-ico peach"><svg class="ico"><use href="#i-target"/></svg></span><div><small>Objetivos semanales</small><strong id="dbWeekGoal">—</strong><em id="dbWeekGoalFoot"></em></div></a>
-            <a class="db-metric" href="#/finance"><span class="db-ico"><svg class="ico"><use href="#i-wallet"/></svg></span><div><small>Balance mensual</small><strong id="dbBalance">0,00 €</strong><em id="dbBalanceFoot"></em></div></a>
+            <a class="db-metric sx" href="#/tasks"><span class="db-ico"><svg class="ico"><use href="#i-task"/></svg></span><div><small>Tareas pendientes</small><strong id="dbTasks">0</strong><em id="dbTasksFoot"></em><span class="sx-bar" aria-hidden="true"><i id="dbTasksBar"></i></span></div></a>
+            <a class="db-metric sx" href="#/habits"><span class="db-ico mint"><svg class="ico"><use href="#i-habit"/></svg></span><div><small>Hábitos de hoy</small><strong id="dbHabits">0/0</strong><em id="dbHabitsFoot"></em><span class="sx-bar" aria-hidden="true"><i id="dbHabitsBar"></i></span></div></a>
+            <a class="db-metric sx" href="#/habits"><span class="db-ico peach"><svg class="ico"><use href="#i-target"/></svg></span><div><small>Objetivos semanales</small><strong id="dbWeekGoal">—</strong><em id="dbWeekGoalFoot"></em><span class="sx-bar" aria-hidden="true"><i id="dbWeekGoalBar"></i></span></div></a>
+            <a class="db-metric sx" href="#/finance"><span class="db-ico"><svg class="ico"><use href="#i-wallet"/></svg></span><div><small>Balance mensual</small><strong id="dbBalance">0,00 €</strong><em id="dbBalanceFoot"></em></div></a>
           </section>
         </div>
         <section class="db-widget panel db-timerbar" data-widget="timer" data-title="Cronómetro y temporizador" aria-label="Cronómetro y temporizador">
@@ -260,24 +256,24 @@
           </div>
         </section>
 <section class="db-widget panel" data-widget="tasks" data-title="Próximas tareas">
-            <div class="panel-head"><div><h3>Próximas tareas</h3><p>Vencidas, de hoy y próximas.</p></div><a class="link-button" href="#/tasks">Ver todo ↗</a></div>
+            <div class="panel-head"><div><h3>Próximas tareas</h3></div><a class="link-button" href="#/tasks">Ver todo ↗</a></div>
             <ul class="list task-quick task-cards" id="dashTasks"></ul>
           </section>
           <section class="db-widget panel" data-widget="heat" data-title="Mapa de constancia">
-            <div class="panel-head"><div><h3>Mapa de constancia</h3><p>Una fila por hábito · últimos 35 días</p></div><span class="pill" id="heatmapCaption"></span></div>
+            <div class="panel-head"><div><h3>Mapa de constancia</h3></div><span class="pill" id="heatmapCaption"></span></div>
             <div class="db-heat-scroll"><div id="dbHeat" class="db-heat" role="img" aria-label="Mapa de constancia por hábito"></div></div>
             <div class="db-legend"><span><i class="done"></i> Cumplido</span><span><i class="miss"></i> No cumplido</span><span><i class="na"></i> Sin registro / no tocaba</span></div>
             <p class="empty-state hidden" id="dbHeatEmpty">Crea un hábito para ver tu constancia.</p>
           </section>
           <section class="db-widget panel" data-widget="week" data-title="Resumen semanal">
-            <div class="panel-head"><div><h3>Resumen semanal</h3><p>Hábitos de esta semana</p></div></div>
+            <div class="panel-head"><div><h3>Resumen semanal</h3></div></div>
             <div class="weekly-card">
               <div class="ring" id="progressRing" role="img" aria-label="Cumplimiento semanal"><strong id="progressPct">0%</strong></div>
               <div class="weekly-copy"><strong id="progressTitle"></strong><p id="progressText"></p></div>
             </div>
           </section>
           <section class="db-widget panel" data-widget="activity" data-title="Actividad semanal">
-            <div class="panel-head"><div><h3>Actividad semanal</h3><p>Hábitos marcados y tareas completadas</p></div></div>
+            <div class="panel-head"><div><h3>Actividad semanal</h3></div></div>
             <div id="weeklyChart" class="weekly-chart" role="img" aria-label="Actividad de esta semana"></div>
             <p class="muted w-foot" id="weeklyFocus"></p>
             <p class="empty-state hidden" id="weeklyEmpty">Todavía no hay actividad esta semana.</p>
@@ -289,52 +285,70 @@
               <div><small>Gastos</small><strong id="dashExpenses">0,00 €</strong></div>
               <div><small>Presupuesto restante</small><strong id="dashBudgetLeft">—</strong></div>
             </div>
+            <div class="db-fbar" id="dashBudgetBar" role="progressbar" aria-label="Presupuesto mensual gastado" aria-valuemin="0" aria-valuemax="100" hidden><span id="dashBudgetFill"></span></div>
             <p class="muted" id="dashBudgetFoot"></p>
+            <div class="db-fsec" id="dashCatsBox">
+              <h4>Dónde se va tu dinero</h4>
+              <ul class="db-fcats" id="dashTopCats"></ul>
+            </div>
+            <div class="db-ffoot" id="dashFinFoot"></div>
           </section>
-          <section class="db-widget panel db-quote" data-widget="quote" data-title="Filosofía del día">
-            <div class="panel-head"><div><h3>Filosofía del día</h3></div><button type="button" class="link-button" id="dbQuoteHistory">Ver historial</button></div>
-            <blockquote id="dbQuote"></blockquote>
-            <small id="dbQuoteBy"></small>
-          </section>
-        <section class="db-widget panel journal" data-widget="note" data-title="Nota rápida">
+        <section class="db-widget panel journal db-folder" data-widget="note" data-title="Nota rápida">
+          <div class="folder-tab" aria-hidden="true"><span>Hoy</span></div>
           <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">✧</div><div><strong>Nota rápida de hoy</strong><small>Se guarda sola, en tu cuenta</small></div></div>
           <textarea id="quickJournal" data-journal="quick" data-follow="today" placeholder="Hoy me gustaría recordar que…" aria-label="Nota rápida de hoy"></textarea>
           <div class="journal-footer"><small id="quickSaveStatus" class="save-indicator"></small><small id="quickWords"></small></div>
         </section>
         <section class="db-widget panel is-off" data-widget="next" data-title="Próxima acción" aria-label="Próxima acción">
-          <div class="panel-head"><div><h3>Próxima acción</h3><p>La tarea que más merece atención</p></div><a class="link-button" href="#/tasks">Ver tareas ↗</a></div>
+          <div class="panel-head"><div><h3>Próxima acción</h3></div><a class="link-button" href="#/tasks">Tareas ↗</a></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="budget" data-title="Presupuesto por categorías" aria-label="Presupuesto por categorías">
-          <div class="panel-head"><div><h3>Presupuesto por categorías</h3><p>Gastado, límite y movimientos del mes</p></div><a class="link-button" href="#/finance">Abrir finanzas ↗</a></div>
+          <div class="panel-head"><div><h3>Presupuesto por categorías</h3></div><a class="link-button" href="#/finance">Abrir finanzas ↗</a></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="goal" data-title="Objetivo activo e hitos" aria-label="Objetivo activo e hitos">
-          <div class="panel-head"><div><h3>Objetivo activo e hitos</h3><p>Tu meta de ahorro y sus hitos</p></div><a class="link-button" href="#/finance">Ver metas ↗</a></div>
+          <div class="panel-head"><div><h3>Objetivo activo e hitos</h3></div><a class="link-button" href="#/finance">Ver metas ↗</a></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="focus" data-title="Tiempo de concentración" aria-label="Tiempo de concentración">
-          <div class="panel-head"><div><h3>Tiempo de concentración</h3><p>Sesiones de hoy y de la semana</p></div></div>
+          <div class="panel-head"><div><h3>Concentración</h3></div><a class="link-button" href="#/timer">Cronómetro ↗</a></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="notes" data-title="Notas rápidas y calendario" aria-label="Notas rápidas y calendario">
-          <div class="panel-head"><div><h3>Notas rápidas y calendario</h3><p>Ideas recientes y próximos vencimientos</p></div><a class="link-button" href="#/journal">Abrir diario ↗</a></div>
+          <div class="panel-head"><div><h3>Notas rápidas y calendario</h3></div><a class="link-button" href="#/journal">Abrir diario ↗</a></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="payments" data-title="Próximos pagos" aria-label="Próximos pagos">
-          <div class="panel-head"><div><h3>Próximos pagos</h3><p>Suscripciones activas y fecha de cobro</p></div><a class="link-button" href="#/finance">Ver suscripciones ↗</a></div>
+          <div class="panel-head"><div><h3>Próximos pagos</h3></div><a class="link-button" href="#/finance">Ver suscripciones ↗</a></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="saving" data-title="Objetivo de ahorro" aria-label="Objetivo de ahorro">
-          <div class="panel-head"><div><h3>Objetivo de ahorro</h3><p>Meta, acumulado y lo que falta</p></div><a class="link-button" href="#/finance">Ver metas ↗</a></div>
+          <div class="panel-head"><div><h3>Objetivo de ahorro</h3></div><a class="link-button" href="#/finance">Ver metas ↗</a></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="stats" data-title="Estadísticas personales" aria-label="Estadísticas personales">
-          <div class="panel-head"><div><h3>Estadísticas personales</h3><p>Hábitos, tareas y concentración</p></div></div>
+          <div class="panel-head"><div><h3>Estadísticas personales</h3></div></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="suggestion" data-title="Sugerencia contextual" aria-label="Sugerencia contextual">
-          <div class="panel-head"><div><h3>Sugerencia contextual</h3><p>Una observación breve de CloudSpace Intelligence</p></div><a class="link-button" href="#/intelligence">Abrir ↗</a></div>
+          <div class="panel-head"><div><h3>Sugerencia contextual</h3></div><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em><a class="link-button" href="#/intelligence">Abrir ↗</a></div>
+          <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
+        </section>
+        <section class="db-widget panel" data-widget="schedule" data-title="Mi horario" aria-label="Mi horario">
+          <div class="panel-head"><div><h3>Mi horario</h3></div><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em><button type="button" class="link-button" id="schEdit">Editar</button></div>
+          <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
+        </section>
+        <section class="db-widget panel" data-widget="copilot" data-title="Copiloto del día" aria-label="Copiloto del día">
+          <div class="panel-head"><div><h3>Copiloto del día</h3></div><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em></div>
+          <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
+        </section>
+        <section class="db-widget panel is-off" data-widget="timemachine" data-title="Máquina del tiempo" aria-label="Máquina del tiempo">
+          <div class="panel-head"><div><h3>Máquina del tiempo</h3></div><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em></div>
+          <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
+        </section>
+        <section class="db-widget panel is-off" data-widget="objectives" data-title="Objetivos" aria-label="Objetivos">
+          <div class="panel-head"><div><h3>Objetivos</h3></div><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em><a class="link-button" href="#/plan">Plan ↗</a></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         </div>
@@ -342,12 +356,12 @@
 
       <!-- HÁBITOS -->
       <section class="page hidden" id="page-habits" aria-labelledby="h-habits">
-        <div class="page-intro"><h1 id="h-habits">Construye tu ritmo</h1><p>Pequeños hábitos, grandes cambios. La constancia es el puente entre tus objetivos y la vida que quieres.</p></div>
+        <div class="page-intro"><h1 id="h-habits">Construye tu ritmo</h1></div>
 
         <section class="hb-stats" aria-label="Resumen de hábitos">
-          <article class="hb-stat"><span class="hb-icon"><svg class="ico"><use href="#i-habit"/></svg></span><div><small>Hábitos completados hoy</small><strong id="hbToday">0</strong><div class="hb-bar"><span id="hbTodayBar"></span></div></div></article>
-          <article class="hb-stat"><span class="hb-icon mint"><svg class="ico"><use href="#i-chart"/></svg></span><div><small>Cumplimiento semanal</small><strong id="hbWeek">0%</strong><div class="hb-bar"><span id="hbWeekBar"></span></div></div></article>
-          <article class="hb-stat"><span class="hb-icon peach"><svg class="ico"><use href="#i-flame"/></svg></span><div><small>Mejor racha actual</small><strong id="hbBest">0 días</strong><div class="hb-bar"><span id="hbBestBar"></span></div></div></article>
+          <article class="hb-stat sx"><span class="hb-icon"><svg class="ico"><use href="#i-habit"/></svg></span><div><small>Hábitos completados hoy</small><strong id="hbToday">0</strong><div class="hb-bar"><span id="hbTodayBar"></span></div></div></article>
+          <article class="hb-stat sx"><span class="hb-icon mint"><svg class="ico"><use href="#i-chart"/></svg></span><div><small>Cumplimiento semanal</small><strong id="hbWeek">0%</strong><div class="hb-bar"><span id="hbWeekBar"></span></div></div></article>
+          <article class="hb-stat sx"><span class="hb-icon peach"><svg class="ico"><use href="#i-flame"/></svg></span><div><small>Mejor racha actual</small><strong id="hbBest">0 días</strong><div class="hb-bar"><span id="hbBestBar"></span></div></div></article>
         </section>
 
         <div class="hb-grid">
@@ -358,7 +372,6 @@
               <div class="empty-cloud" aria-hidden="true"><svg class="ico"><use href="#i-cloud"/></svg></div>
               <p id="habitEmptyText"></p>
             </div>
-            <section class="encourage hb-note"><div aria-hidden="true">✦</div><strong>Una nota para ti</strong><p id="habitNote"></p></section>
           </section>
 
           <aside class="hb-side">
@@ -390,25 +403,21 @@
 
       <!-- TAREAS -->
       <section class="page hidden" id="page-tasks" aria-labelledby="h-tasks">
-        <div class="page-intro"><h1 id="h-tasks">Un paso a la vez</h1><p>Organiza hoy, construye mañana.</p></div>
+        <div class="page-intro"><h1 id="h-tasks">Un paso a la vez</h1></div>
 
         <section class="task-stats" aria-label="Resumen de tareas">
-          <article class="tk-stat"><span class="tk-icon"><svg class="ico"><use href="#i-task"/></svg></span><div><div class="tk-num" id="tkPending">0</div><div class="tk-label">Pendientes</div></div></article>
-          <article class="tk-stat"><span class="tk-icon mint"><svg class="ico"><use href="#i-calendar"/></svg></span><div><div class="tk-num" id="tkToday">0</div><div class="tk-label" id="tkTodayLabel">Para hoy</div></div></article>
-          <article class="tk-stat"><span class="tk-icon"><svg class="ico"><use href="#i-habit"/></svg></span><div><div class="tk-num" id="tkDone">0</div><div class="tk-label">Completadas</div></div></article>
-          <article class="tk-quote"><span id="tkQuote"></span><small id="tkQuoteBy"></small></article>
+          <article class="tk-stat sx"><span class="tk-icon"><svg class="ico"><use href="#i-task"/></svg></span><div><div class="tk-num" id="tkPending">0</div><div class="tk-label">Pendientes</div></div><span class="sx-bar" aria-hidden="true"><i id="tkPendingBar"></i></span></article>
+          <article class="tk-stat sx"><span class="tk-icon mint"><svg class="ico"><use href="#i-calendar"/></svg></span><div><div class="tk-num" id="tkToday">0</div><div class="tk-label" id="tkTodayLabel">Para hoy</div></div><span class="sx-bar" aria-hidden="true"><i id="tkTodayBar"></i></span></article>
+          <article class="tk-stat sx"><span class="tk-icon"><svg class="ico"><use href="#i-habit"/></svg></span><div><div class="tk-num" id="tkDone">0</div><div class="tk-label">Completadas</div></div><span class="sx-bar" aria-hidden="true"><i id="tkDoneBar"></i></span></article>
         </section>
 
         <section class="panel task-toolbar-panel" aria-label="Buscar y filtrar tareas">
           <div class="task-toolbar">
             <div class="search-box"><svg class="ico"><use href="#i-search"/></svg><input id="task-search" type="search" placeholder="Buscar tareas…" aria-label="Buscar tareas"></div>
-            <select id="task-filter-label" aria-label="Filtrar por etiqueta"></select>
-            <select id="task-filter-prio" aria-label="Filtrar por prioridad">
-              <option value="">Toda prioridad</option><option value="1">P1 · Urgente</option><option value="2">P2 · Alta</option><option value="3">P3 · Media</option><option value="4">P4 · Normal</option>
-            </select>
-            <select id="task-sort" aria-label="Ordenar tareas">
-              <option value="smart">Orden inteligente</option><option value="due">Fecha límite</option><option value="priority">Prioridad</option><option value="created">Más recientes</option><option value="alpha">A-Z</option>
-            </select>
+            <div class="filter-menu">
+              <button type="button" id="task-filter-btn" class="filter-btn" aria-haspopup="true" aria-expanded="false" aria-controls="task-filter-pop"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg><span>Filtros</span><b id="task-filter-n" class="n" hidden></b></button>
+              <div id="task-filter-pop" class="filter-pop" role="group" aria-label="Filtros y orden de las tareas" hidden></div>
+            </div>
             <div id="task-mode" class="seg" role="group" aria-label="Vista">
               <button type="button" data-mode="list" class="active" title="Vista de lista" aria-label="Vista de lista"><svg class="ico"><use href="#i-list"/></svg></button>
               <button type="button" data-mode="grid" title="Vista de cuadrícula" aria-label="Vista de cuadrícula"><svg class="ico"><use href="#i-grid"/></svg></button>
@@ -454,8 +463,38 @@
       </section>
 
       <!-- DIARIO -->
+      <section class="page hidden" id="page-plan" aria-labelledby="h-plan">
+        <div class="page-intro plan-intro"><h1 id="h-plan">Plan</h1><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em><button type="button" class="primary-btn" id="objNew">+ Nuevo objetivo</button></div>
+        <div class="jr-tabs" id="planTabs" role="tablist" aria-label="Secciones del plan">
+          <button type="button" role="tab" data-tab="objetivos"><svg class="ico"><use href="#i-target"/></svg>Objetivos</button>
+          <button type="button" role="tab" data-tab="calendario"><svg class="ico"><use href="#i-calendar"/></svg>Calendario</button>
+        </div>
+        <div id="pv-objetivos" role="tabpanel">
+        <div id="objSummary"></div>
+        <div class="obj-filter seg" id="objFilter" role="group" aria-label="Estado de los objetivos">
+          <button type="button" data-f="active" class="active" aria-pressed="true">Activos<em></em></button>
+          <button type="button" data-f="paused" aria-pressed="false">En pausa<em></em></button>
+          <button type="button" data-f="done" aria-pressed="false">Conseguidos<em></em></button>
+        </div>
+        <div id="objList" class="obj-list-wrap"></div>
+        </div>
+        <div id="pv-calendario" role="tabpanel" class="hidden">
+          <div class="cal-bar">
+            <div class="cal-nav"><button type="button" class="icon-button cal-prev" id="calPrev" aria-label="Mes anterior" title="Mes anterior"><svg class="ico"><use href="#i-chev"/></svg></button><strong id="calLabel" aria-live="polite"></strong><button type="button" class="icon-button cal-next" id="calNext" aria-label="Mes siguiente" title="Mes siguiente"><svg class="ico"><use href="#i-chev"/></svg></button><button type="button" class="secondary small" id="calToday">Hoy</button></div>
+            <div class="cal-filters" id="calFilters" role="group" aria-label="Qué mostrar">
+              <button type="button" data-k="tasks" class="on" aria-pressed="true"><i class="k-tasks"></i>Tareas</button>
+              <button type="button" data-k="milestones" class="on" aria-pressed="true"><i class="k-milestones"></i>Hitos</button>
+              <button type="button" data-k="payments" class="on" aria-pressed="true"><i class="k-payments"></i>Pagos</button>
+              <button type="button" data-k="focus" class="on" aria-pressed="true"><i class="k-focus"></i>Concentración</button>
+            </div>
+          </div>
+          <div class="cal-grid" id="calGrid" role="grid" aria-label="Calendario del mes"></div>
+          <div class="cal-day panel" id="calDay" aria-live="polite"></div>
+        </div>
+      </section>
+
       <section class="page hidden" id="page-journal" aria-labelledby="h-journal">
-        <div class="page-intro"><h1 id="h-journal">Tu rincón de ideas</h1><p>Escribe sin presión. No tiene que quedar perfecto, solo ser tuyo.</p></div>
+        <div class="page-intro"><h1 id="h-journal">Tu rincón de ideas</h1></div>
         <div class="jr-tabs" id="journalTabs" role="tablist" aria-label="Secciones del diario">
           <button type="button" role="tab" data-tab="diario"><svg class="ico"><use href="#i-journal"/></svg>Diario</button>
           <button type="button" role="tab" data-tab="entradas"><svg class="ico"><use href="#i-calendar"/></svg>Entradas</button>
@@ -463,25 +502,38 @@
         </div>
 
         <div id="jv-diario" role="tabpanel">
-          <div class="date-nav">
-            <button type="button" class="icon-button" id="journalPrev" aria-label="Día anterior">‹</button>
-            <input type="date" id="journalDate" aria-label="Fecha del diario">
-            <button type="button" class="icon-button" id="journalNext" aria-label="Día siguiente">›</button>
-            <button type="button" class="filter" id="journalToday">Hoy</button>
-            <span class="muted" id="journalDateLabel"></span>
+          <div class="jr-layout">
+            <aside class="jr-recent" aria-label="Entradas recientes">
+              <span class="eyebrow">ENTRADAS</span>
+              <div id="jrRecent" class="jr-recent-list"></div>
+            </aside>
+            <div class="jr-main">
+              <div class="date-nav">
+                <button type="button" class="icon-button" id="journalPrev" aria-label="Día anterior">‹</button>
+                <input type="date" id="journalDate" aria-label="Fecha del diario">
+                <button type="button" class="icon-button" id="journalNext" aria-label="Día siguiente">›</button>
+                <button type="button" class="filter" id="journalToday">Hoy</button>
+                <span class="muted" id="journalDateLabel"></span>
+              </div>
+              <section class="panel journal jr-sheet">
+                <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">✧</div><div><strong>Nota rápida</strong><small>Una idea, un recordatorio, una frase</small></div></div>
+                <textarea id="jQuick" data-journal="quick" data-follow="date" style="min-height:90px" placeholder="Hoy me gustaría recordar que…" aria-label="Nota rápida"></textarea>
+                <div class="journal-footer"><small id="jQuickStatus" class="save-indicator"></small><small id="jQuickWords"></small><button type="button" class="link-button" data-idea-from="jQuick">💡 Guardar como idea</button></div>
+              </section>
+              <section class="panel journal jr-sheet" style="margin-top:16px">
+                <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">🌙</div><div><strong>Entrada del día</strong><small>Para lo que necesita más espacio</small></div></div>
+                <textarea id="jFull" data-journal="entry" data-follow="date" style="min-height:240px" placeholder="¿Qué ha ido bien hoy? ¿Qué has aprendido? ¿Qué te gustaría recordar?" aria-label="Entrada del día"></textarea>
+                <div class="journal-footer"><small id="jFullStatus" class="save-indicator"></small><small id="jFullWords"></small><button type="button" class="link-button" data-idea-from="jFull">💡 Guardar como idea</button></div>
+              </section>
+            </div>
+            <aside class="jr-side" aria-label="Ideas y preguntas">
+              <span class="eyebrow">IDEAS SUELTAS</span>
+              <div id="jrIdeas" class="jr-ideas"></div>
+              <span class="eyebrow" style="margin-top:6px">¿ATASCADO?</span>
+              <p class="muted" style="margin:0;font-size:12px">Pulsa una pregunta y se añade a tu entrada.</p>
+              <div class="journal-prompts" id="journalPrompts"></div>
+            </aside>
           </div>
-          <section class="panel journal">
-            <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">✧</div><div><strong>Nota rápida</strong><small>Una idea, un recordatorio, una frase</small></div></div>
-            <textarea id="jQuick" data-journal="quick" data-follow="date" style="min-height:90px" placeholder="Hoy me gustaría recordar que…" aria-label="Nota rápida"></textarea>
-            <div class="journal-footer"><small id="jQuickStatus" class="save-indicator"></small><small id="jQuickWords"></small><button type="button" class="link-button" data-idea-from="jQuick">💡 Guardar como idea</button></div>
-          </section>
-          <section class="panel journal" style="margin-top:16px">
-            <div class="journal-prompt"><div class="journal-spark" aria-hidden="true">🌙</div><div><strong>Entrada del día</strong><small>Para lo que necesita más espacio</small></div></div>
-            <textarea id="jFull" data-journal="entry" data-follow="date" style="min-height:240px" placeholder="¿Qué ha ido bien hoy? ¿Qué has aprendido? ¿Qué te gustaría recordar?" aria-label="Entrada del día"></textarea>
-            <div class="journal-footer"><small id="jFullStatus" class="save-indicator"></small><small id="jFullWords"></small><button type="button" class="link-button" data-idea-from="jFull">💡 Guardar como idea</button></div>
-          </section>
-          <div class="section-title"><div><h2>¿No sabes por dónde empezar?</h2><p>Pulsa una pregunta y se añade a tu entrada.</p></div></div>
-          <div class="journal-prompts" id="journalPrompts"></div>
         </div>
 
         <div id="jv-entradas" class="hidden" role="tabpanel">
@@ -523,7 +575,7 @@
       <!-- FINANZAS -->
       <section class="page hidden" id="page-finance" aria-labelledby="h-finance">
         <div class="page-intro fin-head">
-          <div><h1 id="h-finance">Finanzas personales</h1><p>Registra ingresos y gastos a mano, vigila tu presupuesto y entiende en qué se va tu dinero. No hay conexión con ningún banco.</p></div>
+          <div><h1 id="h-finance">Finanzas personales</h1></div>
           <div class="date-nav fin-period" role="group" aria-label="Periodo">
             <button type="button" class="icon-button" id="finPrev" aria-label="Mes anterior">‹</button>
             <strong class="month-label" id="finMonthLabel"></strong>
@@ -533,10 +585,10 @@
         </div>
 
         <div class="fin-cards">
-          <article class="fin-card"><span class="fin-ico in"><svg class="ico"><use href="#i-download"/></svg></span><div><small>Ingresos</small><strong id="finIncome">0,00 €</strong><em>Total de entradas</em></div></article>
-          <article class="fin-card"><span class="fin-ico out"><svg class="ico flip"><use href="#i-download"/></svg></span><div><small>Gastos</small><strong id="finExpense">0,00 €</strong><em>Total de salidas</em></div></article>
-          <article class="fin-card"><span class="fin-ico"><svg class="ico"><use href="#i-euro"/></svg></span><div><small>Balance del mes</small><strong id="finBalance">0,00 €</strong><em>Ingresos − gastos</em></div></article>
-          <article class="fin-card"><div class="fin-ring" id="finBudgetRing" style="--pct:0"><span id="finBudgetPct">—</span></div><div><small>Presupuesto mensual</small><strong id="finBudgetLeft">—</strong><em id="finBudgetFoot">Define un presupuesto abajo</em></div></article>
+          <article class="fin-card sx"><span class="fin-ico in"><svg class="ico"><use href="#i-download"/></svg></span><div><small>Ingresos</small><strong id="finIncome">0,00 €</strong><em>Total de entradas</em><span class="sx-bar" aria-hidden="true"><i id="finIncomeBar"></i></span></div></article>
+          <article class="fin-card sx"><span class="fin-ico out"><svg class="ico flip"><use href="#i-download"/></svg></span><div><small>Gastos</small><strong id="finExpense">0,00 €</strong><em>Total de salidas</em><span class="sx-bar" aria-hidden="true"><i id="finExpenseBar"></i></span></div></article>
+          <article class="fin-card sx"><span class="fin-ico"><svg class="ico"><use href="#i-euro"/></svg></span><div><small>Balance del mes</small><strong id="finBalance">0,00 €</strong><em>Ingresos − gastos</em></div></article>
+          <article class="fin-card sx"><div class="fin-ring" id="finBudgetRing" style="--pct:0"><span id="finBudgetPct">—</span></div><div><small>Presupuesto mensual</small><strong id="finBudgetLeft">—</strong><em id="finBudgetFoot">Define un presupuesto abajo</em></div></article>
         </div>
 
         <!-- Dos columnas apiladas (en vez de dos filas de rejilla): así no quedan huecos vacíos cuando un panel es más alto que su vecino.
@@ -544,7 +596,7 @@
         <div class="fin-grid">
           <div class="fin-col">
           <section class="panel" style="order:1">
-            <div class="panel-head"><div><h3>Ingresos y gastos</h3><p>Evolución mes a mes</p></div>
+            <div class="panel-head"><div><h3>Ingresos y gastos</h3></div>
               <div class="row nowrap"><span class="chart-legend"><i></i> Ingresos · <i class="spent"></i> Gastos</span>
                 <input type="hidden" id="finRange" value="6"><div class="seg seg-range" role="group" aria-label="Periodo del gráfico"><button type="button" class="active" data-range="6" aria-pressed="true">6 meses</button><button type="button" data-range="12" aria-pressed="false">12 meses</button></div></div></div>
             <div id="trendChart" class="trend-chart" role="img" aria-label="Ingresos y gastos"></div>
@@ -610,7 +662,7 @@
 
       <!-- CRONÓMETRO -->
       <section class="page hidden" id="page-timer" aria-labelledby="h-timer">
-        <div class="page-intro"><h1 id="h-timer">Cronómetro</h1><p>Gestiona tu tiempo, enfócate en lo importante.</p></div>
+        <div class="page-intro"><h1 id="h-timer">Cronómetro</h1></div>
 
         <div class="timer-tabs" id="timer-tabs" role="tablist" aria-label="Modo de tiempo">
           <button type="button" class="timer-tab" role="tab" data-mode="stopwatch" aria-selected="false"><svg class="ico"><use href="#i-timer"/></svg><span>Cronómetro</span></button>
@@ -622,7 +674,6 @@
         <section id="timer-card" class="timer-card" aria-label="Panel de tiempo">
           <div class="timer-task">
             <input id="timer-label" placeholder="¿En qué trabajas? (opcional)" maxlength="80" aria-label="En qué trabajas (opcional)">
-            <div class="timer-quote"><svg class="ico"><use href="#i-spark"/></svg><span id="timer-quote"></span></div>
           </div>
 
           <div class="timer-display">
@@ -674,9 +725,9 @@
         </section>
 
         <section class="timer-stats" aria-label="Estadísticas del cronómetro">
-          <article class="stat tstat"><span class="tstat-icon"><svg class="ico"><use href="#i-timer"/></svg></span><div><div class="stat-label">Tiempo de hoy</div><div class="stat-value" id="tsToday">0min</div><div class="stat-foot" id="tsTodayFoot"></div></div><div class="mini-bars" id="tsBars" aria-hidden="true"></div></article>
-          <article class="stat tstat"><span class="tstat-icon"><svg class="ico"><use href="#i-habit"/></svg></span><div><div class="stat-label">Sesiones completadas</div><div class="stat-value" id="tsCount">0</div><div class="stat-foot" id="tsCountFoot"></div></div></article>
-          <article class="stat tstat"><span class="tstat-icon"><svg class="ico"><use href="#i-flame"/></svg></span><div><div class="stat-label">Días activos</div><div class="stat-value" id="tsDays">0</div><div class="stat-foot">de los últimos 7 días</div></div><div class="dots7" id="tsDots" aria-hidden="true"></div></article>
+          <article class="stat tstat sx"><span class="tstat-icon"><svg class="ico"><use href="#i-timer"/></svg></span><div><div class="stat-label">Tiempo de hoy</div><div class="stat-value" id="tsToday">0min</div><div class="stat-foot" id="tsTodayFoot"></div></div><div class="mini-bars" id="tsBars" aria-hidden="true"></div></article>
+          <article class="stat tstat sx"><span class="tstat-icon"><svg class="ico"><use href="#i-habit"/></svg></span><div><div class="stat-label">Sesiones completadas</div><div class="stat-value" id="tsCount">0</div><div class="stat-foot" id="tsCountFoot"></div></div><span class="sx-bar tsbar" aria-hidden="true"><i id="tsCountBar"></i></span></article>
+          <article class="stat tstat sx"><span class="tstat-icon"><svg class="ico"><use href="#i-flame"/></svg></span><div><div class="stat-label">Días activos</div><div class="stat-value" id="tsDays">0</div><div class="stat-foot">de los últimos 7 días</div></div><div class="dots7" id="tsDots" aria-hidden="true"></div></article>
         </section>
 
         <section class="panel timer-history">
@@ -699,8 +750,8 @@
       <section class="page hidden" id="page-intelligence" aria-labelledby="h-intelligence">
         <div class="page-intro it-head">
           <div>
-            <h1 id="h-intelligence">CloudSpace Intelligence</h1>
-            <p>Observaciones calculadas con reglas a partir de tus datos reales. No usa ninguna API de IA y no envía nada a ningún servicio.</p>
+            <h1 id="h-intelligence">CloudSpace Intelligence</h1><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em>
+            
             <span class="pill" id="itStatus"></span>
           </div>
           <div class="it-actions">
@@ -743,8 +794,20 @@
       </section>
 
       <!-- PREFERENCIAS -->
+      <section class="page hidden" id="page-admin" aria-labelledby="h-admin">
+        <div class="page-intro adm-intro"><h1 id="h-admin">Administración</h1><em class="adm-tag" title="Solo la cuenta de administrador ve este apartado">Solo tú</em><button type="button" class="secondary small" id="admRefresh">Actualizar</button></div>
+        <div class="jr-tabs" id="admTabs" role="tablist" aria-label="Secciones de administración">
+          <button type="button" role="tab" data-tab="resumen">Resumen</button>
+          <button type="button" role="tab" data-tab="usuarios">Usuarios</button>
+          <button type="button" role="tab" data-tab="uso">Uso</button>
+          <button type="button" role="tab" data-tab="opiniones">Opiniones</button>
+          <button type="button" role="tab" data-tab="ajustes">Ajustes</button>
+        </div>
+        <div id="admBody" role="tabpanel"></div>
+      </section>
+
       <section class="page hidden" id="page-prefs" aria-labelledby="h-prefs">
-        <div class="page-intro"><h1 id="h-prefs">Preferencias y datos</h1><p>Apariencia, copias de seguridad e importación.</p></div>
+        <div class="page-intro"><h1 id="h-prefs">Preferencias y datos</h1></div>
 
         <section class="panel" id="itPrefs">
           <div class="panel-head"><div><h3>CloudSpace Intelligence</h3><p id="itPrefStatus"></p></div></div>
@@ -759,6 +822,15 @@
           <p class="muted it-note">La fecha la fijas tú a mano: CloudSpace no comprueba ni modifica tu suscripción de Claude. Pasada la fecha se oculta la sección y el servidor rechaza crear recomendaciones nuevas; el resto de módulos y tus datos no cambian. Esta zona siempre sigue disponible aquí para reactivarla.</p>
         </section>
 
+        <section class="panel hidden" id="usagePanel">
+          <div class="panel-head"><div><h3>Privacidad y uso</h3><p>Qué ve el administrador de esta app</p></div></div>
+          <ul class="honest">
+            <li>Solo cuenta cuánto tiempo usas la app y en qué apartado (segundos al día), y cuántos registros tienes.</li>
+            <li>Nunca lee el contenido de tus tareas, notas, gastos ni hábitos.</li>
+            <li>De vez en cuando puede salir una pregunta rápida para mejorar la app: la puedes cerrar o silenciar.</li>
+          </ul>
+        </section>
+
         <section class="panel" id="textsPanel">
           <div class="panel-head"><div><h3>Textos de la interfaz</h3><p>Cambia títulos, menús y botones fijos. Se guarda en tu cuenta y puedes restaurarlos.</p></div><button type="button" class="secondary small" id="editTexts">Editar textos</button></div>
         </section>
@@ -768,6 +840,9 @@
           <div class="theme-choice" role="radiogroup" aria-label="Tema">
             <label class="theme-option"><input type="radio" name="theme" value="dark"><span class="swatch swatch-dark" aria-hidden="true"></span><span>Oscuro</span></label>
             <label class="theme-option"><input type="radio" name="theme" value="light"><span class="swatch swatch-light" aria-hidden="true"></span><span>Claro</span></label>
+            <label class="theme-option"><input type="radio" name="theme" value="mix"><span class="swatch swatch-mix" aria-hidden="true"></span><span>Mix</span></label>
+            <label class="theme-option"><input type="radio" name="theme" value="minimal"><span class="swatch swatch-minimal" aria-hidden="true"></span><span>Minimal</span></label>
+            <label class="theme-option"><input type="radio" name="theme" value="minimal-dark"><span class="swatch swatch-minimal-dark" aria-hidden="true"></span><span>Minimal oscuro</span></label>
           </div>
         </section>
 
@@ -826,11 +901,18 @@
       <a href="#/dashboard" data-page="dashboard" aria-label="Resumen" title="Resumen"><svg class="ico"><use href="#i-dash"/></svg><span>Resumen</span></a>
       <a href="#/habits" data-page="habits" aria-label="Hábitos" title="Hábitos"><svg class="ico"><use href="#i-habit"/></svg><span>Hábitos</span></a>
       <a href="#/tasks" data-page="tasks" aria-label="Tareas" title="Tareas"><svg class="ico"><use href="#i-task"/></svg><span>Tareas</span></a>
-      <a href="#/journal" data-page="journal" aria-label="Diario" title="Diario"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
       <a href="#/finance" data-page="finance" aria-label="Finanzas" title="Finanzas"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
-      <a href="#/timer" data-page="timer" aria-label="Cronómetro" title="Cronómetro"><svg class="ico"><use href="#i-timer"/></svg><span>Tiempo</span></a>
-      <a href="#/intelligence" data-page="intelligence" data-intel class="hidden" aria-label="Intelligence" title="Intelligence"><svg class="ico"><use href="#i-cloud"/></svg><span>Intelligence</span></a>
+      <button type="button" id="moreBtn" class="nav-more" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" aria-label="Más secciones" title="Más"><svg class="ico"><use href="#i-dots"/></svg><span>Más</span></button>
     </nav>
+    <div class="qa-menu more-menu" id="moreMenu" role="menu" aria-label="Más secciones" hidden>
+      <a role="menuitem" href="#/journal" data-page="journal" aria-label="Diario" title="Diario"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
+      <a role="menuitem" href="#/timer" data-page="timer" aria-label="Cronómetro" title="Cronómetro"><svg class="ico"><use href="#i-timer"/></svg><span>Cronómetro</span></a>
+      <a role="menuitem" href="#/plan" data-page="plan" aria-label="Plan" title="Plan"><svg class="ico"><use href="#i-target"/></svg><span>Plan</span><em class="beta-tag">Beta</em></a>
+      <a role="menuitem" href="#/intelligence" data-page="intelligence" data-intel class="hidden" aria-label="Intelligence" title="Intelligence"><svg class="ico"><use href="#i-cloud"/></svg><span>Intelligence</span><em class="beta-tag">Beta</em></a>
+      <a role="menuitem" href="#/admin" data-page="admin" data-admin class="hidden" aria-label="Administración" title="Administración"><svg class="ico"><use href="#i-shield"/></svg><span>Administración</span></a>
+    </div>
+    <div class="qa-menu" id="qaMenu" role="menu" aria-label="Añadir" hidden></div>
+    <button type="button" id="qaFab" class="qa-fab" aria-haspopup="true" aria-expanded="false" aria-controls="qaMenu" aria-label="Añadir" title="Añadir"><svg class="ico"><use href="#i-plus"/></svg></button>
   </div>
 
   <dialog id="task-dialog" aria-label="Detalle de la tarea"></dialog>
@@ -847,31 +929,19 @@
     <div class="dr-body">
       <section aria-labelledby="drAvail"><h3 id="drAvail">Disponibles</h3><div class="dr-list" id="dbAvail"></div><p class="dr-empty hidden" id="dbAvailEmpty">Ya tienes todos los widgets en tu Resumen.</p></section>
       <section aria-labelledby="drUsed"><h3 id="drUsed">En tu Resumen</h3><div class="dr-list" id="dbShowRow"></div></section>
-      <details class="dr-more">
-        <summary>Frase del día</summary>
-        <fieldset class="db-phrase-set" id="dbPhraseSet" aria-label="Frase del día">
-          <label class="chk"><input type="checkbox" id="phShow"> Mostrar</label>
-          <label>Estilo <select id="phStyle"><option value="mixto">Mixto</option><option value="filosofico">Filosófico</option><option value="motivacional">Motivacional</option><option value="reflexivo">Reflexivo</option></select></label>
-          <label>Interpretación <select id="phLen"><option value="corta">Corta</option><option value="larga">Larga</option><option value="ninguna">Sin interpretación</option></select></label>
-          <label class="chk"><input type="checkbox" id="phDate"> Fecha</label>
-          <label class="chk"><input type="checkbox" id="phAccent"> Acento de color</label>
-        </fieldset>
-      </details>
     </div>
     <footer class="dr-foot"><button type="button" class="secondary small" id="dbLayoutReset">Restablecer Resumen</button></footer>
   </aside>
   <button type="button" id="itCloud" class="it-cloud hidden" aria-label="Abrir CloudSpace Intelligence" aria-haspopup="dialog" aria-expanded="false" title="CloudSpace Intelligence"><svg class="ico"><use href="#i-cloud"/></svg><i class="it-dot hidden" aria-hidden="true"></i></button>
   <section id="itWindow" class="it-window hidden" role="dialog" aria-modal="false" aria-labelledby="itWinTitle">
-    <header><strong id="itWinTitle"><svg class="ico"><use href="#i-cloud"/></svg> CloudSpace Intelligence</strong></header>
+    <header><strong id="itWinTitle"><svg class="ico"><use href="#i-cloud"/></svg> CloudSpace Intelligence</strong><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em></header>
     <div class="it-win-body" id="itWinBody"></div>
   </section>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="vendor/supabase-2.117.3.js"></script>
   <script src="config.js"></script>
   <script src="logic.js"></script>
-  <script src="quotes.js"></script>
-  <script src="phrases.js"></script>
   <script src="intel.js"></script>
   <script src="core.js"></script>
   <script src="ui.js"></script>
@@ -880,9 +950,13 @@
   <script src="userprefs.js"></script>
   <script src="texts.js"></script>
   <script src="widgets.js"></script>
+  <script src="copilot.js"></script>
+  <script src="schedule.js"></script>
   <script src="dashboard.js"></script>
   <script src="habits.js"></script>
   <script src="tasks.js"></script>
+  <script src="objectives.js"></script>
+  <script src="calendar.js"></script>
   <script src="journal.js"></script>
   <script src="finance.js"></script>
   <script src="timer.js"></script>
@@ -890,6 +964,9 @@
   <script src="notify.js"></script>
   <script src="prefs.js"></script>
   <script src="guest.js"></script>
+  <script src="usage.js"></script>
+  <script src="admin.js"></script>
+  <script src="quickadd.js"></script>
   <script src="sidebar.js"></script>
   <script src="app.js"></script>
 </body>

@@ -255,6 +255,8 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cloud.op
 const toLocalInput = (iso) => { if (!iso) return ""; const d = new Date(iso); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 
 function renderIntelPrefs() {
+  const prefsBox = $("#itPrefs") && ($("#itPrefs").closest(".panel") || $("#itPrefs"));
+  if (prefsBox) prefsBox.classList.toggle("hidden", !isGuest() && !state.isAdmin);
   const i = state.intel;
   const when = i.expires_at ? new Date(i.expires_at).toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" }) : null;
   $("#itPrefStatus").textContent = !i.ready ? "Falta ejecutar migracion-v5.sql en Supabase: hasta entonces solo funciona la parte local."

@@ -132,7 +132,39 @@ function renderJournal() {
       return h("button", { type: "button", class: "prompt-card", onclick: () => addPrompt(title, q) }, h("b", { text: title }), q);
     })
   );
+  renderRecent(date);
+  renderSideIdeas();
   renderJournalTabs();
+}
+
+const SHEET_ROT = [-1.5, 1, -0.6, 1.4, -1];
+const DOW_ES = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
+// Últimos días con notas, como hojas apiladas; pulsar uno lo abre en el cuaderno
+function renderRecent(current) {
+  const entries = dayEntries();
+  const days = [...entries.keys()].sort().reverse().slice(0, 5);
+  const box = $("#jrRecent");
+  if (!days.length) { box.replaceChildren(h("p", { class: "muted", text: "Aquí aparecerán tus últimos días con notas." })); return; }
+  box.replaceChildren(...days.map((d, i) => {
+    const e = entries.get(d);
+    return h("button", {
+      type: "button", class: "jr-leaf" + (d === current ? " on" : ""), style: `transform: rotate(${SHEET_ROT[i % SHEET_ROT.length]}deg)`,
+      "aria-label": `Abrir la entrada del ${Logic.longDate(d)}`, "aria-pressed": String(d === current), onclick: () => gotoJournalDay(d),
+    },
+      h("span", { class: "jr-leaf-date", "aria-hidden": "true" }, h("small", { text: DOW_ES[Logic.parseDay(d).getDay()] }), h("b", { text: String(Number(d.slice(8))) })),
+      h("span", { class: "jr-leaf-text", text: excerpt(e.entry || e.quick, 70) }));
+  }));
+}
+
+// Las ideas más recientes, como notas pegadas; llevan a la pestaña de ideas
+function renderSideIdeas() {
+  const box = $("#jrIdeas");
+  const list = [...state.ideas].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 3);
+  if (!list.length) { box.replaceChildren(h("p", { class: "muted", text: "Todavía no tienes ideas. Guárdalas con «💡» desde tus notas." })); return; }
+  box.replaceChildren(...list.map((i, k) => h("button", {
+    type: "button", class: "jr-note n" + (k % 3), style: `transform: rotate(${[1.5, -2, 1][k % 3]}deg)`, onclick: async () => { await flushJournal(); setJournalTab("ideas"); },
+    "aria-label": `Idea: ${i.title}. Abrir mis ideas`,
+  }, i.title)));
 }
 
 function addPrompt(title, question) {

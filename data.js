@@ -74,6 +74,7 @@ const LOADERS = {
   timer: async () => { state.timer = await loadTimer(); },
   ideas: () => loadIdeas(),
   subscriptions: () => loadSubs(),
+  objectives: () => loadObjectives(),
   intelligence: () => loadIntel(), // intelligence_settings + intelligence_items
 };
 // Si cambia X, también hay que releer lo que depende de X (borrados en cascada, etc.)
@@ -207,11 +208,21 @@ function setHabitDay(habitId, day, on) {
 
 // Activa = interruptor encendido y fecha de expiración (si existe) aún no alcanzada. La fecha la fija el propietario a mano.
 function intelActive(now = Date.now()) {
+  if (!isGuest() && !state.isAdmin) return false; // Intelligence es solo del administrador (lo exige también el servidor)
   const i = state.intel;
   return !!i.enabled && (!i.expires_at || now < Date.parse(i.expires_at));
 }
 
 async function loadIntel() {
+  if (isGuest()) state.isAdmin = false;
+  else {
+    try { state.isAdmin = (await db.rpc("is_admin")).data === true; } catch (_) { state.isAdmin = false; } // sin la función (multiusuario.sql sin ejecutar) = no admin
+  }
+  if (!isGuest() && !state.isAdmin) {
+    state.intel = { enabled: false, expires_at: null, mode: "rules", stored: false, ready: true };
+    state.intelItems = [];
+    return;
+  }
   try {
     const rows = await fetchAll(() => db.from("intelligence_settings").select("*"));
     const r = rows[0];
@@ -306,6 +317,46 @@ function updateSub(id, patch) {
 }
 const editSub = (id, v) => updateSub(id, subRow(v));
 const deleteSub = (id) => mutate(() => { state.subs = state.subs.filter((x) => x.id !== id); }, () => subWrite(db.from("subscriptions").delete().eq("id", id)));
+
+/* ---------- Objetivos e hitos (tabla objectives; se crea con migracion-v10.sql) ---------- */
+
+async function loadObjectives() {
+  try {
+    state.objectives = await fetchAll(() => db.from("objectives").select("*").order("created_at").order("id"));
+    state.objectivesReady = true;
+  } catch (e) {
+    state.objectives = [];
+    state.objectivesReady = !missingTable(e);
+    if (state.objectivesReady) throw e;
+  }
+}
+async function objWrite(query) {
+  const { error } = await query;
+  if (error) {
+    console.error(error);
+    setSync(false);
+    toast(missingTable(error) ? "Falta la tabla de objetivos: ejecuta migracion-v10.sql en Supabase." : Logic.dataErrorText(error), 7000);
+    throw error;
+  }
+  setSync(true);
+}
+const objPatch = (p) => {
+  const out = {};
+  if ("title" in p) out.title = String(p.title || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  if ("why" in p) out.why = String(p.why || "").trim().slice(0, 500);
+  if ("due_date" in p) out.due_date = Logic.isDayKey(p.due_date) ? p.due_date : null;
+  if ("status" in p && Logic.OBJ_STATUS.includes(p.status)) out.status = p.status;
+  if ("milestones" in p) out.milestones = Logic.normMilestones(p.milestones);
+  if ("task_ids" in p) out.task_ids = [...new Set(p.task_ids || [])].slice(0, 100);
+  if ("habit_ids" in p) out.habit_ids = [...new Set(p.habit_ids || [])].slice(0, 100);
+  return out;
+};
+const createObjective = (v) => mutate(null, () => objWrite(db.from("objectives").insert({ title: "", why: "", due_date: null, milestones: [], task_ids: [], habit_ids: [], ...objPatch(v) })));
+function updateObjective(id, patch) {
+  const o = state.objectives.find((x) => x.id === id), clean = objPatch(patch);
+  return mutate(() => o && Object.assign(o, clean), () => objWrite(db.from("objectives").update({ ...clean, updated_at: new Date().toISOString() }).eq("id", id)));
+}
+const deleteObjective = (id) => mutate(() => { state.objectives = state.objectives.filter((x) => x.id !== id); }, () => objWrite(db.from("objectives").delete().eq("id", id)));
 
 async function ideaWrite(query) {
   const { error } = await query;

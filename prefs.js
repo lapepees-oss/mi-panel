@@ -1,23 +1,29 @@
 "use strict";
 // Preferencias: tema (solo en este navegador), exportar JSON/CSV, importar desde Cloudspace y cerrar sesión.
 
+const THEMES = ["dark", "light", "mix", "minimal", "minimal-dark"];
+const LIGHT_THEMES = ["light", "minimal"];
+// Botón sol/luna: alterna entre la variante clara y la oscura del tema actual (Mix no tiene variante clara: pasa a Claro)
+const THEME_TOGGLE = { dark: "light", light: "dark", mix: "light", minimal: "minimal-dark", "minimal-dark": "minimal" };
+
 function currentTheme() {
-  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
+  const t = document.documentElement.dataset.theme;
+  return THEMES.includes(t) ? t : "dark";
 }
 
 function applyTheme(theme) {
-  theme = theme === "light" ? "light" : "dark";
+  theme = THEMES.includes(theme) ? theme : "dark";
   document.documentElement.dataset.theme = theme;
   store.set("theme", theme);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", theme === "light" ? "#f5f6fb" : "#0c0d14");
+  if (meta) meta.setAttribute("content", theme === "light" ? "#f5f6fb" : theme === "minimal" ? "#f3f0ea" : theme === "minimal-dark" ? "#16181a" : theme === "mix" ? "#141416" : "#0c0d14");
   const use = document.querySelector("#themeToggle use");
-  if (use) use.setAttribute("href", theme === "light" ? "#i-moon" : "#i-sun");
+  if (use) use.setAttribute("href", LIGHT_THEMES.includes(theme) ? "#i-moon" : "#i-sun");
   $$('input[name="theme"]').forEach((r) => (r.checked = r.value === theme));
 }
 
 $$('input[name="theme"]').forEach((r) => r.addEventListener("change", () => r.checked && applyTheme(r.value)));
-$("#themeToggle").addEventListener("click", () => applyTheme(currentTheme() === "dark" ? "light" : "dark"));
+$("#themeToggle").addEventListener("click", () => applyTheme(THEME_TOGGLE[currentTheme()]));
 applyTheme(currentTheme());
 
 /* ---------- Exportar ---------- */

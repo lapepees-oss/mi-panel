@@ -1,0 +1,53 @@
+/* Tema «Mix»: oscuro cálido, papel crema, azul pizarra y acento naranja. Se activa con html[data-theme="mix"].
+   Usa las mismas variables que los temas oscuro y claro, así que todas las secciones lo heredan sin cambios. */
+:root[data-theme="mix"] {
+  color-scheme: dark;
+  --bg: #141416; --surface: #1d1e21; --surface2: #232427; --surface3: #2a2b2f;
+  --text: #e8d8c9; --muted: #a9a39b; --line: #2a2b2f; --line2: #3a3a3e;
+  --primary: #f3701e; --primary2: #d95f12; --primary-soft: #3a2214; --on-primary: #1d0c03;
+  --mint: #8fc9a0; --mint-soft: #1f3328; --peach: #e8c27a; --peach-soft: #3a3020;
+  --blue: #9fb0c8; --blue-soft: #2b3a4f; --pink: #e8a99a; --pink-soft: #3b2a28;
+  --danger: #ff8a7a; --danger-soft: #40231f; --warn: #e8c27a;
+  --shadow: 0 18px 40px rgba(0, 0, 0, .45);
+  --heat0: #232427; --heat1: #4a2412; --heat2: #8a3a14; --heat3: #c4561a; --heat4: #f3701e; --heat-line: #2f3034;
+  --bg-glow: none; --card-bg: #1d1e21; --input-bg: #141416; --sidebar-bg: rgba(20, 20, 22, .96);
+  /* papel del Diario */
+  --paper-bg: #e8d8c9; --paper-ink: #1d1a18; --paper-muted: #6b5f55; --paper-rule: rgba(29, 26, 24, .14); --paper-margin: rgba(243, 112, 30, .45);
+  --leaf-bg: #2a2b2f; --leaf-ink: #e8d8c9; --leaf-on-bg: #d9c3ab; --leaf-on-ink: #1d1a18;
+  --n0-bg: #e8d8c9; --n0-ink: #1d1a18; --n1-bg: #f3701e; --n1-ink: #1d0c03; --n2-bg: #d9c3ab; --n2-ink: #1d1a18;
+}
+/* Cielo nocturno discreto, fijo detrás de todo */
+:root[data-theme="mix"] body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .8;
+  background-image:
+    radial-gradient(1.5px 1.5px at 7% 14%, #e8d8c9 99%, transparent), radial-gradient(1px 1px at 18% 62%, #e8d8c9 99%, transparent),
+    radial-gradient(1.5px 1.5px at 29% 28%, #e8d8c9 99%, transparent), radial-gradient(1px 1px at 41% 80%, #e8d8c9 99%, transparent),
+    radial-gradient(1px 1px at 53% 12%, #e8d8c9 99%, transparent), radial-gradient(1.5px 1.5px at 64% 46%, #e8d8c9 99%, transparent),
+    radial-gradient(1px 1px at 72% 88%, #e8d8c9 99%, transparent), radial-gradient(1.5px 1.5px at 83% 22%, #e8d8c9 99%, transparent),
+    radial-gradient(1px 1px at 91% 58%, #e8d8c9 99%, transparent), radial-gradient(1px 1px at 96% 9%, #e8d8c9 99%, transparent),
+    radial-gradient(1px 1px at 12% 90%, #e8d8c9 99%, transparent), radial-gradient(1.5px 1.5px at 47% 52%, #e8d8c9 99%, transparent);
+}
+:root[data-theme="mix"] .app, :root[data-theme="mix"] .main { position: relative; z-index: 1; }
+:root[data-theme="mix"] .panel, :root[data-theme="mix"] .stat { background: var(--surface); border-color: var(--line); box-shadow: 0 10px 24px rgba(0, 0, 0, .28); }
+:root[data-theme="mix"] .page-intro h1, :root[data-theme="mix"] h1, :root[data-theme="mix"] .brand-name { letter-spacing: -.03em; }
+:root[data-theme="mix"] .primary-btn { background: var(--primary); color: var(--on-primary); box-shadow: 0 8px 18px rgba(243, 112, 30, .25); }
+:root[data-theme="mix"] .nav-label, :root[data-theme="mix"] .date-chip, :root[data-theme="mix"] .nav-ind { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+/* Navegación: barra lateral en el PC (como los otros temas); dock flotante solo en el móvil */
+@media (max-width: 760px) {
+  :root[data-theme="mix"] .bottom-nav {
+    display: flex; align-items: center; justify-content: center; gap: 2px; padding: 6px; width: auto; max-width: calc(100% - 20px); background: #1e1f22;
+    backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid #2f3034; border-radius: 99px; box-shadow: 0 18px 40px rgba(0, 0, 0, .6);
+  }
+  :root[data-theme="mix"] .bottom-nav a { flex: none; width: 42px; height: 42px; padding: 0; border-radius: 99px; justify-content: center; color: var(--muted); }
+  :root[data-theme="mix"] .bottom-nav a[aria-current="page"] { color: #141416; background: #e8d8c9; }
+  :root[data-theme="mix"] .bottom-nav .nav-ind { display: none; }
+  :root[data-theme="mix"] .bottom-nav a:hover:not([aria-current="page"]) { color: var(--text); text-decoration: none; }
+}
+.swatch-mix { background: linear-gradient(135deg, #141416 50%, #f3701e 50%); }
+:root[data-theme="mix"] .jr-main .jr-sheet { background: var(--paper-bg); border-color: transparent; box-shadow: 0 24px 48px rgba(0, 0, 0, .5); }
+/* Degradados violeta fijos de otros archivos: en Mix usan el naranja */
+:root[data-theme="mix"] .primary-btn { background: var(--primary); }
+:root[data-theme="mix"] #page-timer .timer-tab.active, :root[data-theme="mix"] .db-tm.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); box-shadow: 0 7px 18px rgba(243, 112, 30, .25); }
+:root[data-theme="mix"] .db-start { background: var(--primary); color: var(--on-primary); }
+:root[data-theme="mix"] .it-cloud { border-color: color-mix(in srgb, var(--primary) 55%, transparent); }

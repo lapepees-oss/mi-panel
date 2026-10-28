@@ -21,6 +21,7 @@ const GUEST_DEFAULTS = {
   timer: { running: false, started_at: null, accumulated_ms: 0, mode: "stopwatch", routine_id: null, label: "", target_ms: 0 },
   timer_sessions: { label: "", kind: null },
   routines: { cycles: 1 },
+  objectives: { why: "", due_date: null, status: "active", milestones: [], task_ids: [], habit_ids: [] },
   intelligence_items: { status: "pending", category: "otros", problem: "", action: "", priority: 4, suggested_date: null, related_goal: "" },
 };
 const GUEST_CASCADE = {
@@ -74,6 +75,9 @@ function guestSeed() {
       row({ ...GUEST_DEFAULTS.subscriptions, name: "Música en streaming", amount: 10.99, next_charge: d(5), started_on: d(-60) }),
       row({ ...GUEST_DEFAULTS.subscriptions, name: "Almacenamiento en la nube", amount: 24, cycle: "yearly", next_charge: d(120), started_on: d(-200) }),
     ],
+    objectives: [row({ ...GUEST_DEFAULTS.objectives, title: "Aprobar el primer curso", why: "Llegar a junio con todo al día", due_date: d(120),
+      milestones: [{ id: "m1", title: "Entregar las prácticas del primer trimestre", done: true, date: d(-10), task_ids: [tasks[0].id] }, { id: "m2", title: "Aprobar los exámenes de diciembre", done: false, date: d(45), task_ids: [tasks[2].id] }, { id: "m3", title: "Proyecto final entregado", done: false, date: d(100) }],
+      task_ids: [tasks[0].id, tasks[2].id], habit_ids: [habits[0].id] })],
     timer: [], timer_sessions: [], routines: [], routine_steps: [],
   };
 }

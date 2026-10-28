@@ -657,7 +657,7 @@ test("dashLayout: valores por defecto, ids desconocidos/repetidos y bloques nuev
   assert.deepEqual(d.order, L.DASH_WIDGETS);
   assert.deepEqual(d.hidden, L.DASH_WIDGETS.filter((id) => !L.DASH_CATALOG[id].on)); // los bloques del catálogo nuevos arrancan ocultos
   const x = L.dashLayout({ order: ["note", "zzz", "timer", "note"], hidden: ["tasks", "tasks", "nope"] });
-  assert.deepEqual(x.order.slice(0, 2), ["note", "timer"]);
+  assert.deepEqual(x.order.slice(3, 5), ["note", "timer"]); // «Mi horario» (first) y sus compañeros se colocan delante la primera vez
   assert.equal(x.order.length, L.DASH_WIDGETS.length);
   assert.equal(new Set(x.order).size, x.order.length);
   assert.ok(x.hidden.includes("tasks") && !x.hidden.includes("nope") && x.hidden.filter((i) => i === "tasks").length === 1);
@@ -777,52 +777,17 @@ test("semana y estado de hoy respetan el calendario del hábito", () => {
   assert.deepEqual(L.weekSummary(hb, by, "2026-10-27"), { done: 2, missed: 0, pending: 0, total: 2, pct: 100 }); // el martes no es una ocasión
 });
 
-/* ---------- Frase del día ---------- */
-
-test("phraseOfDay: estable en el día, cambia con la fecha y no repite en la última semana", () => {
-  const pool = Array.from({ length: 36 }, (_, i) => ({ t: "p" + i }));
-  assert.equal(L.phraseOfDay("2026-10-26", pool).t, L.phraseOfDay("2026-10-26", pool).t);
-  assert.notEqual(L.phraseOfDay("2026-10-26", pool).t, L.phraseOfDay("2026-10-27", pool).t);
-  const seen = [];
-  for (let d = 0; d < 800; d++) {
-    const t = L.phraseOfDay(L.addDays("2026-01-01", d), pool).t;
-    assert.ok(!seen.slice(-7).includes(t), "repetida en menos de 7 días: " + t);
-    seen.push(t);
-  }
-  assert.equal(L.phraseOfDay("2026-10-26", []), null);
-  assert.equal(L.phraseOfDay("2026-10-26", [{ t: "única" }]).t, "única");
-});
-
-test("phrasePrefs normaliza ajustes guardados", () => {
-  assert.deepEqual(L.phrasePrefs(null), { show: true, style: "mixto", length: "corta", date: true, accent: true });
-  assert.equal(L.phrasePrefs({ style: "raro", length: "x", show: false }).style, "mixto");
-  assert.equal(L.phrasePrefs({ show: false }).show, false);
-  assert.equal(L.phrasePrefs({ length: "larga" }).length, "larga");
-});
-
-test("la colección de frases es válida y no atribuye citas a nadie", () => {
-  const src = require("fs").readFileSync(__dirname + "/../phrases.js", "utf8");
-  const PHRASES = new Function(src + "; return PHRASES;")();
-  assert.ok(PHRASES.length >= 30);
-  for (const p of PHRASES) {
-    assert.ok(["filosofico", "motivacional", "reflexivo"].includes(p.s));
-    assert.ok(p.t && p.a && p.b && !("by" in p));
-  }
-  for (const s of ["filosofico", "motivacional", "reflexivo"]) assert.ok(PHRASES.filter((p) => p.s === s).length >= 8);
-  assert.equal(new Set(PHRASES.map((p) => p.t)).size, PHRASES.length);
-});
-
 /* ---------- Panel del Resumen: catálogo, tamaños, orden y estadísticas ---------- */
 
 test("dashLayout normaliza: ids desconocidos, tamaños y textos; los bloques nuevos del catálogo arrancan ocultos", () => {
   const d = L.dashLayout(null);
   assert.equal(d.order.length, L.DASH_WIDGETS.length);
-  assert.ok(d.hidden.includes("next") && d.hidden.includes("stats") && !d.hidden.includes("tasks"));
-  const e = L.dashLayout({ order: ["note", "zzz", "tasks", "note"], hidden: ["tasks", "nope"], sizes: { tasks: { w: 99, h: -3 }, quote: { w: 1 } }, cfg: { tasks: { title: "  Mis   tareas ", info: "compact" }, heat: { title: "" } } });
-  assert.deepEqual(e.order.slice(0, 2), ["note", "tasks"]);
+  assert.ok(d.hidden.includes("stats") && !d.hidden.includes("tasks"));
+  const e = L.dashLayout({ order: ["note", "zzz", "tasks", "note"], hidden: ["tasks", "nope"], sizes: { tasks: { w: 99, h: -3 }, week: { w: 1 } }, cfg: { tasks: { title: "  Mis   tareas ", info: "compact" }, heat: { title: "" } } });
+  assert.deepEqual(e.order.slice(3, 5), ["note", "tasks"]);
   assert.ok(e.hidden.includes("tasks") && !e.hidden.includes("nope"));
   assert.deepEqual(e.sizes.tasks, { w: 6, h: 0 });
-  assert.equal(e.sizes.quote.w, 2); // mínimo del catálogo
+  assert.equal(e.sizes.week.w, 2); // mínimo del catálogo
   assert.deepEqual(e.cfg.tasks, { title: "Mis tareas", info: "compact" });
   assert.equal(e.cfg.heat, undefined);
 });
@@ -857,4 +822,256 @@ test("savingMilestones: hitos cada 25 % derivados del importe", () => {
   assert.equal(m.pct, 62); assert.equal(m.reached, 2); assert.equal(m.next.pct, 75); assert.equal(m.next.amount, 1500); assert.equal(m.left, 750);
   assert.equal(L.savingMilestones(0, 5).next, null);
   assert.equal(L.savingMilestones(100, 100).next, null);
+});
+
+/* ---------- Copiloto del día ---------- */
+
+const CP_DAY = "2026-10-28"; // miércoles
+const cpTask = (id, extra = {}) => ({ id, title: "Tarea " + id, status: "todo", prio: 4, due_date: null, ...extra });
+const cpPrefs = { start: 480, end: 1320, fill: 70, taskMin: 30, habitMin: 15, blocks: [{ id: "c", label: "Clases", days: [0, 1, 2, 3, 4], start: 960, end: 1305 }] };
+
+test("copilotPrefs: valores no válidos vuelven a los predeterminados y los bloques se limpian", () => {
+  const p = L.copilotPrefs({ start: 900, end: 100, fill: 5000, blocks: [{ start: 600, end: 500, days: [1] }, { start: 600, end: 700, days: [] }, { label: "x".repeat(99), start: 600, end: 700, days: [9, 2, 2, "3"] }] });
+  assert.equal(p.start, 480); assert.equal(p.end, 1320); assert.equal(p.fill, 100);
+  assert.equal(p.blocks.length, 1); assert.equal(p.blocks[0].label.length, 40); assert.deepEqual(p.blocks[0].days, [2, 3]);
+  assert.deepEqual(L.copilotPrefs(null).blocks, []);
+});
+
+test("copilotFree: quita los bloques fijos y lo que ya pasó", () => {
+  const p = L.copilotPrefs(cpPrefs);
+  assert.deepEqual(L.copilotFree(p, CP_DAY, 0), [[480, 960], [1305, 1320]]);
+  assert.deepEqual(L.copilotFree(p, CP_DAY, 600), [[600, 960], [1305, 1320]]);
+  assert.deepEqual(L.copilotFree(p, CP_DAY, 1000), [[1305, 1320]]);
+  assert.deepEqual(L.copilotFree(p, "2026-10-31", 0), [[480, 1320]]); // sábado: no hay clases
+});
+
+test("planDay: orden vencidas → hoy → hábitos → alta prioridad sin fecha; no incluye lo que no toca", () => {
+  const hab = { id: "h1", name: "Guitarra", created_at: "2026-10-01T10:00:00Z", frequency: "Diario" };
+  const plan = L.planDay({
+    today: CP_DAY, prefs: cpPrefs, habits: [hab], byHabit: new Map(),
+    tasks: [
+      cpTask("fut", { due_date: "2026-11-05" }), cpTask("hoy", { due_date: CP_DAY }), cpTask("venc", { due_date: "2026-10-26" }),
+      cpTask("alta", { prio: 1 }), cpTask("baja"), cpTask("hecha", { status: "done", due_date: CP_DAY }),
+    ],
+  });
+  assert.deepEqual(plan.slots.map((s) => s.id), ["venc", "hoy", "h1", "alta"]);
+  assert.equal(plan.slots[0].start, 480); assert.equal(plan.slots[1].start, 510);
+  assert.match(plan.slots[0].why, /Venció hace 2 días/);
+  assert.ok(plan.slots.every((s) => s.end <= 960 || s.start >= 1305), "nada cae en las clases");
+});
+
+test("planDay: respeta el porcentaje de ocupación y deja el resto fuera con motivo", () => {
+  const tasks = Array.from({ length: 30 }, (_, i) => cpTask("t" + i, { due_date: CP_DAY }));
+  const plan = L.planDay({ today: CP_DAY, prefs: { ...cpPrefs, fill: 20 }, tasks });
+  assert.ok(plan.used <= plan.capacity);
+  assert.equal(plan.slots.length + plan.left.length, 30);
+  assert.ok(plan.left.every((l) => l.reason));
+  assert.ok(plan.capacity <= Math.floor(plan.freeMin * 0.2));
+});
+
+test("planDay: habitos ya hechos, 'hoy no toca' y omitidos no entran; sin datos devuelve un plan vacío", () => {
+  const hb = { id: "h1", name: "Correr", created_at: "2026-10-01T10:00:00Z", frequency: "Fines de semana" };
+  const hb2 = { id: "h2", name: "Leer", created_at: "2026-10-01T10:00:00Z", frequency: "Diario" };
+  const plan = L.planDay({ today: CP_DAY, prefs: cpPrefs, habits: [hb, hb2], byHabit: new Map([["h2", new Set([CP_DAY])]]) });
+  assert.equal(plan.slots.length, 0); assert.equal(plan.candidates, 0);
+  const t = L.planDay({ today: CP_DAY, prefs: cpPrefs, tasks: [cpTask("x", { due_date: CP_DAY })], skip: new Set(["t:x"]) });
+  assert.equal(t.slots.length, 0);
+});
+
+test("planDay: si ya es tarde solo usa los huecos que quedan", () => {
+  const plan = L.planDay({ today: CP_DAY, prefs: cpPrefs, nowMin: 1310, tasks: [cpTask("a", { due_date: CP_DAY })] });
+  assert.equal(plan.freeMin, 10); assert.equal(plan.slots.length, 0); assert.equal(plan.left.length, 1);
+});
+
+/* ---------- Máquina del tiempo ---------- */
+
+const TM_TODAY = "2026-10-28";
+const tmData = () => ({
+  habits: [{ id: "h", name: "Leer", created_at: "2026-04-01T10:00:00Z", frequency: "Diario" }],
+  logs: [...Array.from({ length: 15 }, (_, i) => ({ habit_id: "h", day: L.addDays("2026-07-20", i) })), ...Array.from({ length: 25 }, (_, i) => ({ habit_id: "h", day: L.addDays("2026-10-01", i) }))],
+  tasks: [
+    { id: "a", status: "done", created_at: "2026-07-01T10:00:00Z", completed_at: "2026-07-22T10:00:00Z" },
+    { id: "b", status: "done", created_at: "2026-09-01T10:00:00Z", completed_at: "2026-10-10T10:00:00Z" },
+    { id: "c", status: "done", created_at: "2026-09-01T10:00:00Z", completed_at: "2026-10-12T10:00:00Z" },
+    { id: "d", status: "todo", created_at: "2026-10-20T10:00:00Z", completed_at: null },
+  ],
+  sessions: [{ created_at: "2026-10-05T10:00:00Z", duration_ms: 3600000 }],
+  sessionsFrom: "2026-07-30",
+  transactions: [{ type: "expense", amount: 40, tx_date: "2026-07-25" }, { type: "expense", amount: 55, tx_date: "2026-10-10" }],
+});
+
+test("timeTravel: compara 30 días de hace 3 meses con los últimos 30 días", () => {
+  const r = L.timeTravel(tmData(), TM_TODAY, 3);
+  assert.equal(r.months, 3); assert.equal(r.noPast, false);
+  assert.equal(r.past.to, "2026-07-28"); assert.equal(r.now.to, TM_TODAY);
+  const by = Object.fromEntries(r.rows.map((x) => [x.key, x]));
+  assert.equal(by.tasksDone.past, "1"); assert.equal(by.tasksDone.now, "2"); assert.equal(by.tasksDone.dir, "up");
+  assert.equal(by.openTasks.past, "0"); assert.equal(by.openTasks.now, "1");
+  assert.equal(by.spendCents.past, L.formatEUR(4000)); assert.equal(by.spendCents.now, L.formatEUR(5500));
+  assert.ok(by.habitPct.past && by.habitPct.now);
+});
+
+test("timeTravel: sin datos en esa fecha no inventa nada; sesiones fuera de rango salen como sin dato", () => {
+  const r = L.timeTravel(tmData(), TM_TODAY, 12);
+  assert.equal(r.noPast, true);
+  assert.ok(r.rows.every((x) => x.past === null && x.dir === null));
+  const r6 = L.timeTravel(tmData(), TM_TODAY, 3);
+  assert.equal(r6.rows.find((x) => x.key === "focusMs").past, null, "las sesiones solo llegan a 90 días");
+  assert.equal(L.timeTravel(tmData(), TM_TODAY, 99).months, 3, "valor no válido → 3 meses");
+  assert.equal(L.timeTravel({}, TM_TODAY, 1).noPast, true);
+});
+
+test("Mi horario: etapas del día (bloques, huecos libres y descanso) sin solapes", () => {
+  const prefs = { start: 480, end: 1320, blocks: [
+    { id: "a", label: "Clases", days: [0, 1, 2, 3, 4], start: 960, end: 1305 },
+    { id: "b", label: "Comida", days: [0, 1, 2, 3, 4], start: 840, end: 900 },
+    { id: "c", label: "Solape", days: [0], start: 1000, end: 1100 }, // lo tapa «Clases»
+    { id: "d", label: "Finde", days: [5], start: 600, end: 660 },
+  ] };
+  const lun = "2026-10-26"; // lunes
+  const st = L.scheduleStages(prefs, lun);
+  assert.deepEqual(st.map((s) => [s.kind, s.label, s.start, s.end]), [
+    ["rest", "Descanso", 0, 480], ["free", "Libre", 480, 840], ["block", "Comida", 840, 900], ["free", "Libre", 900, 960],
+    ["block", "Clases", 960, 1305], ["free", "Libre", 1305, 1320], ["rest", "Descanso", 1320, 1440]]);
+  // cubre las 24 h exactas
+  assert.equal(st.reduce((n, s) => n + s.end - s.start, 0), 1440);
+  for (let i = 1; i < st.length; i++) assert.equal(st[i].start, st[i - 1].end);
+  // sin bloques: descanso, libre, descanso
+  assert.deepEqual(L.scheduleStages({}, lun).map((s) => s.kind), ["rest", "free", "rest"]);
+  // sábado: solo el bloque del finde
+  assert.deepEqual(L.scheduleStages(prefs, "2026-10-31").filter((s) => s.kind === "block").map((s) => s.label), ["Finde"]);
+});
+
+test("Mi horario: etapa actual, avance y minutos restantes", () => {
+  const prefs = { blocks: [{ id: "a", label: "Clases", days: [2], start: 960, end: 1305 }] };
+  const mie = "2026-10-28"; // miércoles
+  const n = L.scheduleNow(prefs, mie, 1000);
+  assert.equal(n.cur.label, "Clases");
+  assert.equal(n.pct, Math.round(((1000 - 960) / 345) * 100));
+  assert.equal(n.leftMin, 305);
+  assert.equal(L.scheduleNow(prefs, mie, 0).cur.kind, "rest");
+  assert.equal(L.scheduleNow(prefs, mie, 1439).cur.kind, "rest");
+  assert.equal(L.scheduleNow(prefs, mie, 1305).cur.kind, "free"); // el límite final pertenece a la etapa siguiente
+});
+
+test("Resumen: un bloque nuevo «first» se coloca al principio y visible en diseños guardados", () => {
+  const d = L.dashLayout({ order: ["metrics", "tasks"], hidden: [] });
+  assert.equal(d.order[0], "schedule");
+  assert.ok(!d.hidden.includes("schedule"));
+});
+
+/* ---------- Objetivos e hitos ---------- */
+
+test("objectiveView: el progreso se mide por hitos, no por tareas", () => {
+  const v = L.objectiveView({ id: "o1", title: "  Aprender   a dibujar ", status: "active", due_date: "2026-12-31",
+    milestones: [{ id: "a", title: "Formas básicas", done: true }, { id: "b", title: "Anatomía", done: false, date: "2026-11-20" }, { id: "c", title: "Primer personaje", done: false, date: "2026-11-05" }, { title: "" }],
+    task_ids: ["t1", "t1", 7, "t2"], habit_ids: ["h1"] });
+  assert.equal(v.title, "Aprender a dibujar");
+  assert.equal(v.total, 3); assert.equal(v.done, 1); assert.equal(v.pct, 33);
+  assert.equal(v.next.id, "c"); // el siguiente hito pendiente más cercano
+  assert.deepEqual(v.taskIds, ["t1", "t2"]); assert.deepEqual(v.habitIds, ["h1"]);
+  assert.equal(v.complete, false);
+});
+
+test("objectiveView: sin hitos 0 %; todos hechos = completo; datos raros no rompen", () => {
+  assert.equal(L.objectiveView({ title: "x" }).pct, 0);
+  assert.equal(L.objectiveView({ title: "x", milestones: [] }).complete, false);
+  assert.equal(L.objectiveView({ title: "x", milestones: [{ id: "a", title: "A", done: true }] }).complete, true);
+  const v = L.objectiveView({ title: "x", status: "zzz", due_date: "2026-02-30", milestones: "no", task_ids: "no" });
+  assert.equal(v.status, "active"); assert.equal(v.due, null); assert.equal(v.total, 0); assert.deepEqual(v.taskIds, []);
+  assert.equal(L.objectiveView(null).title, "");
+});
+
+test("normMilestones: ids únicos, máximo 40 y fechas válidas", () => {
+  const m = L.normMilestones([{ id: "a", title: "Uno", date: "2026-13-01" }, { id: "a", title: "Dos" }, ...Array.from({ length: 50 }, (_, i) => ({ title: "H" + i }))]);
+  assert.equal(m.length, 40); assert.equal(new Set(m.map((x) => x.id)).size, 40); assert.equal(m[0].date, null);
+});
+
+test("objectiveLinks: ignora lo que ya no existe; objectiveDaysLeft", () => {
+  const o = { title: "x", task_ids: ["t1", "borrada"], habit_ids: ["h9", "h1"], due_date: "2026-11-01" };
+  const r = L.objectiveLinks(o, [{ id: "t1" }], [{ id: "h1" }]);
+  assert.deepEqual(r.tasks.map((t) => t.id), ["t1"]); assert.deepEqual(r.habits.map((x) => x.id), ["h1"]);
+  assert.equal(L.objectiveDaysLeft(o, "2026-10-28"), 4); assert.equal(L.objectiveDaysLeft(o, "2026-11-03"), -2); assert.equal(L.objectiveDaysLeft({ title: "x" }, "2026-10-28"), null);
+});
+
+test("calendarMonth: coloca tareas, hitos, pagos y concentración en su día sin duplicar", () => {
+  const src = {
+    tasks: [{ id: "t1", due_date: "2026-11-05", status: "todo" }, { id: "t2", due_date: "2026-12-01" }, { id: "t3" }],
+    objectives: [{ id: "o1", title: "A", milestones: [{ id: "a", title: "H1", date: "2026-11-05" }, { id: "b", title: "H2", date: "2026-12-02" }] }, { id: "o2", title: "B", status: "paused", milestones: [{ id: "c", title: "H3", date: "2026-11-05" }] }],
+    subs: [{ id: "s1", name: "Música", amount: 10, cycle: "monthly", next_charge: "2026-10-12", status: "active" }, { id: "s2", name: "Vieja", amount: 5, cycle: "monthly", next_charge: "2026-11-20", status: "cancelled" }],
+    sessions: [{ created_at: new Date(2026, 10, 5, 10).toISOString(), duration_ms: 1800000 }, { created_at: new Date(2026, 10, 5, 12).toISOString(), duration_ms: 600000 }],
+  };
+  const c = L.calendarMonth("2026-11", src, "2026-11-05");
+  assert.equal(c.byDay["2026-11-05"].tasks.length, 1);
+  assert.equal(c.byDay["2026-11-05"].milestones.length, 1); // el objetivo en pausa no aparece
+  assert.equal(c.byDay["2026-11-05"].focusMs, 2400000);
+  assert.equal(c.byDay["2026-11-12"].payments[0].id, "s1"); // el cobro mensual cae en noviembre; la suscripción cancelada, no
+  assert.equal(c.byDay["2026-12-01"], undefined);
+  assert.equal(c.today, "2026-11-05");
+  assert.equal(L.calendarDayCount(c.byDay["2026-11-05"]), 3);
+  assert.equal(L.calendarDayCount(undefined), 0);
+  assert.equal(L.calendarMonth("2026-12", src, "2026-11-05").today, null);
+});
+
+test("objectiveTasks: agrupa por urgencia y elige la siguiente tarea", () => {
+  const T = (id, extra) => ({ id, status: "todo", done: false, prio: 4, due_date: null, ...extra });
+  const tasks = [T("a", { due_date: "2026-10-30" }), T("b", { due_date: "2026-10-20", prio: 3 }), T("c", { due_date: "2026-10-20", prio: 1 }), T("d"), T("e", { status: "done", done: true }), T("f", { due_date: "2026-10-28" })];
+  const r = L.objectiveTasks({ title: "x", task_ids: ["a", "b", "c", "d", "e", "f", "zz"] }, tasks, "2026-10-28");
+  assert.deepEqual(r.groups.overdue.map((t) => t.id), ["c", "b"]); // la de mayor prioridad primero a igual fecha
+  assert.deepEqual(r.groups.today.map((t) => t.id), ["f"]); assert.deepEqual(r.groups.upcoming.map((t) => t.id), ["a"]);
+  assert.deepEqual(r.groups.nodate.map((t) => t.id), ["d"]); assert.deepEqual(r.groups.done.map((t) => t.id), ["e"]);
+  assert.equal(r.total, 6); assert.equal(r.open, 5); assert.equal(r.pct, 17); assert.equal(r.next.id, "c");
+  assert.equal(L.objectiveTasks({ title: "x" }, tasks, "2026-10-28").next, null);
+});
+
+test("milestoneTasks: propone cerrar el hito cuando todas sus tareas están hechas", () => {
+  const tasks = [{ id: "a", status: "done", done: true }, { id: "b", status: "todo", done: false }];
+  assert.equal(L.milestoneTasks({ id: "m", task_ids: ["a"] }, tasks).suggestDone, true);
+  assert.equal(L.milestoneTasks({ id: "m", task_ids: ["a", "b"] }, tasks).suggestDone, false);
+  assert.equal(L.milestoneTasks({ id: "m", task_ids: ["a"], done: true }, tasks).suggestDone, false);
+  assert.equal(L.milestoneTasks({ id: "m", task_ids: [] }, tasks).suggestDone, false);
+  assert.deepEqual(L.normMilestones([{ id: "m", title: "H", task_ids: ["a", "a", 3] }])[0].task_ids, ["a"]);
+});
+
+test("objectiveHue es estable y está entre 0 y 359", () => {
+  assert.equal(L.objectiveHue("abc"), L.objectiveHue("abc"));
+  const h = L.objectiveHue("x-123"); assert.ok(h >= 0 && h < 360); assert.equal(L.objectiveHue(null), 0);
+});
+
+test("dataErrorText: la tabla que falta apunta a su migración", () => {
+  const e = (t) => ({ code: "42P01", message: `relation "public.${t}" does not exist` });
+  assert.match(L.dataErrorText(e("objectives")), /migracion-v10\.sql/);
+  assert.match(L.dataErrorText(e("ideas")), /migracion-v4\.sql/);
+  assert.match(L.dataErrorText(e("subscriptions")), /migracion-v6\.sql/);
+  assert.match(L.dataErrorText(e("tasks")), /migracion-v3\.sql/);
+});
+
+test("administración: estado, textos y lecturas sin inventar", () => {
+  const today = "2026-10-28";
+  assert.equal(L.adminTime(125 * 60), "2 h 05 min");
+  assert.equal(L.adminTime(0), "0 min");
+  assert.equal(L.adminName("lucia.m@gmail.com"), "Lucia");
+  assert.equal(L.adminStatus({ blocked: true, last_day: today }, today), "paused");
+  assert.equal(L.adminStatus({ is_admin: true }, today), "admin");
+  assert.equal(L.adminStatus({ last_day: null }, today), "new");
+  assert.equal(L.adminStatus({ last_day: "2026-10-22" }, today), "active");
+  assert.equal(L.adminStatus({ last_day: "2026-10-21" }, today), "inactive");
+  assert.equal(L.adminLastSeen({ last_day: "2026-10-27" }, today), "Ayer");
+  assert.equal(L.adminLastSeen({ last_day: "2026-10-22" }, today), "Hace 6 días");
+  // sin usuarios no se inventa nada
+  const empty = L.adminInsights({ users: [{ is_admin: true, email: "a@a" }], daily: [], modules: [], today });
+  assert.equal(empty.length, 1);
+  assert.equal(empty[0].kind, "dato");
+  // pocos usuarios: avisa de que es orientativo
+  const few = L.adminInsights({ users: [{ email: "x@y.z", last_day: today, days_30: 3, rows_count: 5 }], daily: [], modules: [], today });
+  assert.ok(few.some((i) => i.kind === "hipotesis" && /orientativas/.test(i.text)));
+  // patrón de correlación solo con >=5 usuarios con uso, marcado como patrón y con confianza
+  const us = [1, 2, 3, 4, 5, 6].map((n) => ({ email: `u${n}@x`, last_day: today, days_30: n * 3, rows_count: n * 10 }));
+  const ins = L.adminInsights({ users: us, daily: [], modules: [], today });
+  const p = ins.find((i) => i.kind === "patron");
+  assert.ok(p && /confianza baja/.test(p.note) && /no demuestra la causa/.test(p.note));
+  assert.ok(Math.abs(L.pearson([1, 2, 3, 4], [2, 4, 6, 8]) - 1) < 1e-9);
+  assert.equal(L.pearson([1, 2], [1, 2]), null);
+  const st = L.adminStats(us.concat([{ is_admin: true, email: "a@a" }]), [{ day: today, active_users: 4, seconds: 4800 }], today);
+  assert.equal(st.friends, 6); assert.equal(st.activeToday, 4); assert.equal(st.avgSecPerActive, 1200);
 });

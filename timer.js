@@ -457,7 +457,6 @@ function renderTimer() {
     : mode === "timer" && targetMs() <= 0 ? "Indica una duración mayor que 0 para iniciar."
     : "El tiempo se guardará al finalizar la sesión.";
   show($("#timer-notify"), "Notification" in window && Notification.permission === "default");
-  $("#timer-quote").textContent = motivationOfDay(todayKey()).text;
 
   tickTimer();
   renderTimerStats();
@@ -473,6 +472,7 @@ function renderTimerStats() {
   if (change === null) foot.textContent = st.todayMs > 0 ? "Ayer no hubo sesiones" : "Aún sin sesiones hoy";
   else foot.append(h("span", { class: change >= 0 ? "positive" : "negative", text: `${change >= 0 ? "↑" : "↓"} ${Math.abs(change)}%` }), " que ayer");
   $("#tsCount").textContent = String(st.todayCount);
+  setBar("tsCountBar", (st.todayCount / Math.max(st.todayCount, st.yesterdayCount, 1)) * 100); // frente a ayer
   const diff = st.todayCount - st.yesterdayCount;
   const cf = $("#tsCountFoot");
   cf.replaceChildren();

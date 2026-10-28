@@ -1,7 +1,7 @@
 // Service worker: deja la app abrir sin conexión (los datos vienen de Supabase).
 // Cada vez que cambies un archivo de SHELL, sube el número de CACHE para que los navegadores descarguen la versión nueva.
-const CACHE = "cloudspace-v24";
-const SHELL = ["./", "index.html", "styles.css", "login.css", "pages.css", "logic.js", "quotes.js", "phrases.js", "userprefs.js", "widgets.js", "texts.js", "intel.js", "intelligence.js", "core.js", "ui.js", "data.js", "auth.js", "dashboard.js", "habits.js", "tasks.js", "journal.js", "finance.js", "timer.js", "notify.js", "prefs.js", "guest.js", "sidebar.js", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-32.png", "icons/apple-touch-icon.png"];
+const CACHE = "cloudspace-v54";
+const SHELL = ["./", "index.html", "styles.css", "login.css", "pages.css", "mix.css", "minimal.css", "theme.js", "vendor/supabase-2.117.3.js", "logic.js", "userprefs.js", "widgets.js", "copilot.js", "schedule.js", "texts.js", "intel.js", "intelligence.js", "core.js", "ui.js", "data.js", "auth.js", "dashboard.js", "habits.js", "tasks.js", "objectives.js", "calendar.js", "quickadd.js", "usage.js", "admin.js", "journal.js", "finance.js", "timer.js", "notify.js", "prefs.js", "guest.js", "sidebar.js", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-32.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -15,15 +15,19 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
-// Red primero, caché como respaldo, solo para archivos de la propia app
+// Red primero, caché como respaldo. Archivos de la propia app y tipografías de Google Fonts
+// (las fuentes se guardan al verlas una vez para que la app se vea igual sin conexión).
+const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 self.addEventListener("fetch", (e) => {
   const req = e.request;
-  if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  const own = url.origin === self.location.origin;
+  if (!own && !FONT_HOSTS.includes(url.hostname)) return;
   e.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
+        if (res.ok || res.type === "opaque") { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
         return res;
       })
       .catch(() => caches.match(req))

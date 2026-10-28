@@ -720,24 +720,27 @@
   /* Catálogo de bloques del Resumen. w = columnas por defecto (rejilla de 6), min/max = límites de ancho, h = alto mínimo por
    * defecto en filas de 72 px (0 = automático). `on` = visible en el panel inicial; el resto solo aparece si lo añades. */
   const DASH_CATALOG = {
+    schedule:   { title: "Mi horario", desc: "En qué etapa de tu horario estás ahora, con efecto de tambor", w: 2, min: 2, max: 6, on: true, first: true },
+    next:       { title: "Próxima acción", desc: "La tarea que más merece atención ahora", w: 2, min: 2, max: 6, on: true, first: true },
+    focus:      { title: "Tiempo de concentración", desc: "Hoy y esta semana, con acceso al cronómetro", w: 2, min: 2, max: 6, on: true, first: true },
     metrics:    { title: "Métricas", desc: "Tareas, hábitos de hoy, objetivos semanales y balance", w: 6, min: 3, max: 6, on: true },
     timer:      { title: "Cronómetro y temporizador", desc: "Barra compacta de tiempo", w: 6, min: 4, max: 6, on: true },
+    copilot:    { title: "Copiloto del día", desc: "Una propuesta de día con el porqué de cada paso; tú decides", w: 3, min: 2, max: 6, on: true },
     tasks:      { title: "Próximas tareas", desc: "Vencidas, de hoy y próximas", w: 3, min: 2, max: 6, on: true },
     heat:       { title: "Mapa de constancia", desc: "Cumplimiento de hábitos por día", w: 6, min: 3, max: 6, on: true },
     week:       { title: "Resumen semanal", desc: "Hábitos de la semana", w: 3, min: 2, max: 6, on: true },
     activity:   { title: "Actividad semanal", desc: "Hábitos, tareas y concentración de la semana", w: 3, min: 2, max: 6, on: true },
     finance:    { title: "Finanzas del mes", desc: "Ingresos, gastos y presupuesto restante", w: 3, min: 2, max: 6, on: true },
-    quote:      { title: "Filosofía del día", desc: "Cita de autor del día", w: 3, min: 2, max: 6, on: true },
     note:       { title: "Nota rápida", desc: "Nota de hoy que se guarda sola", w: 6, min: 2, max: 6, on: true },
-    next:       { title: "Próxima acción", desc: "La tarea que más merece atención ahora", w: 2, min: 2, max: 6, on: false },
     budget:     { title: "Presupuesto por categorías", desc: "Gastado, límite y movimientos de cada categoría", w: 3, min: 2, max: 6, on: false },
     goal:       { title: "Objetivo activo e hitos", desc: "Objetivo de ahorro elegido y su próximo hito", w: 2, min: 2, max: 6, on: false },
-    focus:      { title: "Tiempo de concentración", desc: "Hoy y esta semana, con acceso al cronómetro", w: 3, min: 2, max: 6, on: false },
     notes:      { title: "Notas rápidas y calendario", desc: "Ideas recientes y próximos vencimientos", w: 3, min: 2, max: 6, on: false },
     payments:   { title: "Próximos pagos", desc: "Suscripciones y fechas de cobro", w: 2, min: 2, max: 6, on: false },
     saving:     { title: "Objetivo de ahorro", desc: "Meta, acumulado y lo que falta", w: 2, min: 2, max: 6, on: false },
     stats:      { title: "Estadísticas personales", desc: "Hábitos, tareas y concentración por periodo", w: 3, min: 2, max: 6, on: false },
     suggestion: { title: "Sugerencia contextual", desc: "Observación breve de CloudSpace Intelligence", w: 3, min: 2, max: 6, on: false },
+    timemachine:{ title: "Máquina del tiempo", desc: "Compara los últimos 30 días con hace 1 a 12 meses", w: 6, min: 3, max: 6, on: false },
+    objectives: { title: "Objetivos", desc: "Tus objetivos activos con el avance de sus hitos", w: 3, min: 2, max: 6, on: false },
   };
   const DASH_WIDGETS = Object.keys(DASH_CATALOG);
   const DASH_ROW = 72; // px por fila de alto mínimo
@@ -762,7 +765,10 @@
     const order = [], seen = new Set();
     for (const id of Array.isArray(sv.order) ? sv.order : []) if (ids.includes(id) && !seen.has(id)) { seen.add(id); order.push(id); }
     const fresh = ids.filter((id) => !seen.has(id));
-    for (const id of fresh) order.push(id);
+    // Los bloques nuevos marcados `first` (p. ej. «Mi horario») se colocan al principio; el resto, al final
+    const front = fresh.filter((id) => DASH_CATALOG[id] && DASH_CATALOG[id].first);
+    order.unshift(...front);
+    for (const id of fresh) if (!front.includes(id)) order.push(id);
     let hidden = (Array.isArray(sv.hidden) ? sv.hidden : []).filter((id, i, a) => ids.includes(id) && a.indexOf(id) === i);
     // Sin diseño guardado, los bloques que no son del panel inicial arrancan ocultos; con diseño guardado, los nuevos también
     for (const id of fresh) if (DASH_CATALOG[id] && !DASH_CATALOG[id].on && !hidden.includes(id)) hidden.push(id);
@@ -858,72 +864,6 @@
     return Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
   }
 
-  /* ---------- Frase del día (Resumen) ----------
-   * Selección determinista a partir de la fecha: misma frase en todos los dispositivos, al recargar y al volver a iniciar
-   * sesión el mismo día, sin guardar nada. Los días se reparten en "ciclos" del tamaño de la colección; cada ciclo es una
-   * mezcla (con semilla) de TODAS las frases, así no se repite ninguna hasta agotarlas. Entre un ciclo y el siguiente se
-   * evita que las primeras frases coincidan con las últimas del ciclo anterior (no se repite nada de la última semana). */
-  const PHRASE_STYLES = ["mixto", "filosofico", "motivacional", "reflexivo"];
-  const PHRASE_LENGTHS = ["corta", "larga", "ninguna"];
-  const PHRASE_DEFAULTS = { show: true, style: "mixto", length: "corta", date: true, accent: true };
-
-  // Normaliza lo guardado en el navegador: valores desconocidos vuelven al predeterminado
-  function phrasePrefs(saved) {
-    const s = saved && typeof saved === "object" ? saved : {};
-    return {
-      show: s.show !== false,
-      style: PHRASE_STYLES.includes(s.style) ? s.style : PHRASE_DEFAULTS.style,
-      length: PHRASE_LENGTHS.includes(s.length) ? s.length : PHRASE_DEFAULTS.length,
-      date: s.date !== false,
-      accent: s.accent !== false,
-    };
-  }
-
-  // Generador pseudoaleatorio con semilla (mulberry32): mismo resultado siempre para la misma semilla
-  function seededRandom(seed) {
-    let a = seed >>> 0;
-    return () => {
-      a = (a + 0x6d2b79f5) >>> 0;
-      let t = a;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-
-  const phraseOrderCache = new Map();
-  // Orden de los índices 0..size-1 en el ciclo c (memoizado). Parte de una mezcla con semilla y recoloca al final
-  // cualquier índice de las primeras posiciones que coincida con las últimas `avoid` del ciclo anterior.
-  function phraseCycle(c, size, avoid) {
-    const memo = `${size}:${avoid}`;
-    let list = phraseOrderCache.get(memo);
-    if (!list) phraseOrderCache.set(memo, (list = []));
-    while (list.length <= c) {
-      const n = list.length, rnd = seededRandom(n * 2654435761 + size * 97 + 12345);
-      const ord = Array.from({ length: size }, (_, i) => i);
-      for (let i = size - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [ord[i], ord[j]] = [ord[j], ord[i]]; }
-      if (n > 0) {
-        const recent = new Set(list[n - 1].slice(size - avoid));
-        // las primeras `avoid` posiciones se llenan con frases que NO estén entre las recientes; el resto conserva el orden de la mezcla
-        const head = ord.filter((i) => !recent.has(i)).slice(0, avoid), used = new Set(head);
-        const rest = ord.filter((i) => !used.has(i));
-        ord.length = 0;
-        ord.push(...head, ...rest);
-      }
-      list.push(ord);
-    }
-    return list[c];
-  }
-
-  // pool = lista de frases ya filtrada por estilo. Devuelve la frase de ese día (o null si la lista está vacía).
-  function phraseOfDay(key, pool, avoid = 7) {
-    if (!pool || !pool.length) return null;
-    const size = pool.length, a = Math.min(avoid, Math.floor(size / 2));
-    const n = Math.floor(Date.UTC(...key.split("-").map((v, i) => (i === 1 ? Number(v) - 1 : Number(v)))) / 86400000);
-    const idx = ((n % size) + size) % size, cycle = Math.max(0, Math.floor(n / size));
-    return pool[phraseCycle(cycle, size, a)[idx]];
-  }
-
   const greeting = (hour) => (hour < 6 ? "Buenas noches" : hour < 13 ? "Buenos días" : hour < 21 ? "Buenas tardes" : "Buenas noches");
 
   // Cuántas tareas abiertas lleva cada etiqueta
@@ -964,6 +904,8 @@
         routines: state.routines.map(stripUser),
         routineSteps: state.routineSteps.map(stripUser),
         timerSessions: state.sessions.map(stripUser),
+        ideas: (state.ideas || []).map(stripUser),
+        subscriptions: (state.subs || []).map((x) => ({ ...stripUser(x) })),
       },
     };
   }
@@ -1174,17 +1116,363 @@
     return "No se pudo completar la operación" + (err && err.message ? `: ${err.message}` : ".");
   }
 
+  // Qué migración crea cada tabla (para no mandar siempre a la v3)
+  const TABLE_MIGRATIONS = [["objectives", "migracion-v10.sql"], ["subscriptions", "migracion-v6.sql"], ["ideas", "migracion-v4.sql"]];
+  function missingTableFile(lowerMsg) {
+    const hit = TABLE_MIGRATIONS.find(([t]) => lowerMsg.includes(t));
+    return hit ? hit[1] : "migracion-v3.sql";
+  }
+
   // Errores de datos (no de acceso) con un texto útil para el usuario
   function dataErrorText(err) {
     const m = String((err && err.message) || err || "").toLowerCase();
     const code = err && err.code;
     if (code === "42501" || m.includes("row-level security")) return "Esta cuenta no tiene permiso para guardar datos. Revisa que single-user.sql use tu correo.";
     if (code === "PGRST205" || code === "42P01" || m.includes("could not find the table") || m.includes("does not exist"))
-      return "Faltan tablas en Supabase: ejecuta migracion-v3.sql y recarga.";
+      return `Faltan tablas en Supabase: ejecuta ${missingTableFile(m)} y recarga.`;
     if (m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed")) return "Sin conexión: el cambio no se ha guardado.";
     return "No se pudo guardar" + (err && err.message ? `: ${err.message}` : ".");
   }
 
+
+  /* ================= Administración (solo lectura de recuentos; nunca contenido de nadie) ================= */
+  const dayNum = (key) => { const [y, m, d] = String(key).split("-").map(Number); return Math.floor(Date.UTC(y, (m || 1) - 1, d || 1) / 86400000); };
+  const adminName = (email) => { const l = String(email || "").split("@")[0].split(/[._\-+\d]/)[0].trim(); return l ? l.charAt(0).toUpperCase() + l.slice(1) : "Sin nombre"; };
+  // «3 h 05 min», «12 min», «0 min»
+  function adminTime(sec) {
+    const m = Math.round((Number(sec) || 0) / 60);
+    return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min` : `${m} min`;
+  }
+  // Estado de una persona: pausada · admin · nueva (sin uso aún) · activa (últimos 7 días) · inactiva
+  function adminStatus(u, today) {
+    if (u.blocked) return "paused";
+    if (u.is_admin) return "admin";
+    if (!u.last_day) return "new";
+    return dayNum(today) - dayNum(u.last_day) <= 6 ? "active" : "inactive";
+  }
+  const ADMIN_STATUS_LABEL = { paused: "Pausado", admin: "Admin", new: "Sin uso", active: "Activo", inactive: "Inactivo" };
+  function adminLastSeen(u, today) {
+    if (!u.last_day) return "Aún no ha usado la app";
+    const n = dayNum(today) - dayNum(u.last_day);
+    return n <= 0 ? "Hoy" : n === 1 ? "Ayer" : n < 14 ? `Hace ${n} días` : n < 60 ? `Hace ${Math.round(n / 7)} semanas` : `Hace ${Math.round(n / 30)} meses`;
+  }
+  function adminStats(users, daily, today) {
+    const real = users.filter((u) => !u.is_admin);
+    const todayRow = daily.find((d) => d.day === today);
+    const withUse = daily.filter((d) => d.active_users > 0);
+    const avgSec = withUse.length ? withUse.reduce((n, d) => n + d.seconds / Math.max(d.active_users, 1), 0) / withUse.length : 0;
+    return {
+      total: users.length, friends: real.length,
+      activeToday: todayRow ? todayRow.active_users : 0,
+      active7: users.filter((u) => adminStatus(u, today) === "active").length,
+      paused: users.filter((u) => u.blocked).length,
+      avgSecPerActive: Math.round(avgSec),
+    };
+  }
+  function pearson(xs, ys) {
+    const n = xs.length; if (n < 3) return null;
+    const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+    let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+    return sxx && syy ? sxy / Math.sqrt(sxx * syy) : null;
+  }
+  const adminConf = (n) => (n < 8 ? "baja" : n < 20 ? "media" : "alta");
+  // Lectura de los datos separando HECHOS confirmados, PATRONES observados e HIPÓTESIS. Con pocos usuarios lo avisa; no inventa nada.
+  function adminInsights({ users = [], daily = [], modules = [], today }) {
+    const out = [], real = users.filter((u) => !u.is_admin), n = real.length;
+    if (!n) return [{ kind: "dato", text: "Aún no hay usuarios aparte de ti.", note: "Cuando entren, aquí aparecerán lecturas de lo que ocurre." }];
+    const conf = adminConf(n);
+    if (n < 8) out.push({ kind: "hipotesis", text: `Con ${n} ${n === 1 ? "usuario" : "usuarios"}, las conclusiones son orientativas.`, note: "Cuanta más gente, más fiable se vuelve cada patrón." });
+    // Tendencia: media de activos de los últimos 7 días frente a los 7 anteriores
+    if (daily.length >= 14) {
+      const last = daily.slice(-7), prev = daily.slice(-14, -7);
+      const a = last.reduce((x, d) => x + d.active_users, 0) / 7, b = prev.reduce((x, d) => x + d.active_users, 0) / 7;
+      if (a || b) out.push({ kind: "dato", text: a > b ? `Esta semana entra más gente: ${a.toFixed(1)} activos al día frente a ${b.toFixed(1)}.` : a < b ? `Esta semana entra menos gente: ${a.toFixed(1)} activos al día frente a ${b.toFixed(1)}.` : `La actividad se mantiene: ${a.toFixed(1)} activos al día.`, note: "Dato confirmado · últimos 14 días" });
+    }
+    // Módulos: el más y el menos usados (por personas)
+    const mods = modules.filter((m) => !["app", "otro", "prefs", "admin", "dashboard"].includes(m.module));
+    const activeN = Math.max(real.filter((u) => u.days_30 > 0).length, 1);
+    if (mods.length >= 2) {
+      const byUsers = [...mods].sort((x, y) => y.users - x.users);
+      const top = byUsers[0], low = byUsers[byUsers.length - 1];
+      out.push({ kind: "dato", text: `${MODULE_LABEL(top.module)} es lo más usado: ${top.users} de ${activeN} personas activas.`, note: "Dato confirmado" });
+      if (low.users < top.users) out.push({ kind: "dato", text: `${MODULE_LABEL(low.module)} lo ha abierto poca gente: ${low.users} de ${activeN}.`, note: "Dato confirmado · quizá no se encuentra o no hace falta; no se sabe" });
+    }
+    // Quién lleva días sin entrar (hecho). Sin atribuir causas.
+    real.filter((u) => adminStatus(u, today) === "inactive").slice(0, 2).forEach((u) => out.push({ kind: "dato", text: `${adminName(u.email)} lleva ${dayNum(today) - dayNum(u.last_day)} días sin entrar.`, note: "Dato confirmado" }));
+    // Patrón: ¿quien registra más cosas vuelve más días? (correlación; no implica causa)
+    const used = real.filter((u) => u.last_day);
+    if (used.length >= 5) {
+      const r = pearson(used.map((u) => u.rows_count), used.map((u) => u.days_30));
+      if (r !== null && Math.abs(r) >= 0.5) out.push({ kind: "patron", text: r > 0 ? "Quienes registran más cosas vuelven más días." : "Quienes registran más cosas vuelven menos días.", note: `Patrón observado · confianza ${adminConf(used.length)} · es una relación, no demuestra la causa` });
+    }
+    // Quien nunca ha pasado de crear la cuenta
+    const unused = real.filter((u) => !u.last_day).length;
+    if (unused) out.push({ kind: "dato", text: `${unused} ${unused === 1 ? "persona no ha usado" : "personas no han usado"} la app todavía.`, note: "Dato confirmado · tienen cuenta pero ninguna sesión medida" });
+    return out;
+  }
+  const MODULE_NAMES = { dashboard: "Resumen", habits: "Hábitos", tasks: "Tareas", journal: "Diario", finance: "Finanzas", timer: "Cronómetro", plan: "Plan", intelligence: "Intelligence", prefs: "Ajustes", admin: "Administración", app: "Apertura", otro: "Otros" };
+  function MODULE_LABEL(m) { return MODULE_NAMES[m] || m; }
+
+  /* ================= Copiloto del día ================= */
+  // Propone un día realista a partir de HUECOS LIBRES: ni llena el día entero (fill %) ni toca ningún dato. Solo lee.
+  // Minutos desde las 00:00. Las tareas no guardan duración, así que se usa una duración orientativa (taskMin).
+  const minLabel = (m) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
+
+  function copilotPrefs(saved) {
+    const s = saved && typeof saved === "object" ? saved : {};
+    let start = clampInt(s.start, 0, 1439, 480), end = clampInt(s.end, 1, 1440, 1320);
+    if (end <= start + 30) { start = 480; end = 1320; }
+    const blocks = [];
+    for (const b of Array.isArray(s.blocks) ? s.blocks : []) {
+      if (!b || blocks.length >= 12) continue;
+      const a = clampInt(b.start, 0, 1439, -1), z = clampInt(b.end, 1, 1440, -1);
+      const days = (Array.isArray(b.days) ? b.days : []).map(Number).filter((d, i, arr) => Number.isInteger(d) && d >= 0 && d <= 6 && arr.indexOf(d) === i).sort((x, y) => x - y);
+      if (a < 0 || z <= a || !days.length) continue;
+      blocks.push({ id: cleanText(b.id, 24) || `b${blocks.length + 1}`, label: cleanText(b.label, 40) || "Bloque", days, start: a, end: z });
+    }
+    return { start, end, fill: clampInt(s.fill, 10, 100, 70), taskMin: clampInt(s.taskMin, 5, 240, 30), habitMin: clampInt(s.habitMin, 5, 120, 15), blocks };
+  }
+
+  /* Etapas del día para «Mi horario»: los bloques fijos de ese día y, entre ellos, los huecos («Libre»). Antes de que empiece
+   * el día y después de que termine hay «Descanso». Cubre las 24 h sin solaparse. kind: block | free | rest. */
+  function scheduleStages(saved, key) {
+    const prefs = copilotPrefs(saved), wd = weekdayIndex(key);
+    const blocks = prefs.blocks.filter((b) => b.days.includes(wd)).sort((a, b) => a.start - b.start || a.end - b.end);
+    const out = [];
+    let cur = 0;
+    const push = (kind, label, a, z, id) => { if (z > a) out.push({ kind, label, start: a, end: z, ...(id ? { id } : {}) }); };
+    const gap = (to) => { // relleno entre `cur` y `to`: descanso fuera del día, libre dentro
+      let a = cur;
+      if (a < prefs.start) { const z = Math.min(to, prefs.start); push("rest", "Descanso", a, z); a = z; }
+      if (a < to && a < prefs.end) { const z = Math.min(to, prefs.end); push("free", "Libre", a, z); a = z; }
+      if (a < to) push("rest", "Descanso", a, to);
+    };
+    for (const b of blocks) {
+      if (b.end <= cur) continue; // lo tapa un bloque anterior
+      const a = Math.max(b.start, cur);
+      gap(a);
+      push("block", b.label, a, b.end, b.id);
+      cur = b.end;
+    }
+    gap(1440);
+    return out;
+  }
+
+  // Dónde estás ahora: índice de la etapa actual, avance (0–100) y minutos que quedan. `min` = minutos desde las 00:00.
+  function scheduleNow(saved, key, min) {
+    const stages = scheduleStages(saved, key);
+    let index = stages.findIndex((s) => min >= s.start && min < s.end);
+    if (index < 0) index = Math.max(0, stages.length - 1);
+    const cur = stages[index] || null;
+    const pct = cur ? Math.max(0, Math.min(100, Math.round(((min - cur.start) / (cur.end - cur.start)) * 100))) : 0;
+    return { stages, index, cur, pct, leftMin: cur ? Math.max(0, cur.end - min) : 0 };
+  }
+
+  // Huecos [inicio, fin] del día entre la hora de inicio y la de fin, quitando los bloques fijos y (si se da) lo que ya pasó
+  function copilotFree(prefs, key, fromMin) {
+    const wd = weekdayIndex(key), busy = prefs.blocks.filter((b) => b.days.includes(wd)).map((b) => [b.start, b.end]).sort((a, b) => a[0] - b[0]);
+    const free = [];
+    let cur = Math.max(prefs.start, fromMin || 0);
+    for (const [a, z] of busy) {
+      if (cur >= prefs.end) break;
+      if (z <= cur) continue;
+      if (a > cur) free.push([cur, Math.min(a, prefs.end)]);
+      cur = Math.max(cur, z);
+    }
+    if (cur < prefs.end) free.push([cur, prefs.end]);
+    return free.filter(([a, z]) => z - a >= 5);
+  }
+
+  function planDay(o) {
+    const prefs = copilotPrefs(o.prefs), today = o.today, skip = o.skip || new Set();
+    const wd = weekdayIndex(today);
+    const fixed = prefs.blocks.filter((b) => b.days.includes(wd)).map((b) => ({ label: b.label, start: b.start, end: b.end })).sort((a, b) => a.start - b.start);
+    const free = copilotFree(prefs, today, o.nowMin == null ? 0 : Math.ceil(o.nowMin / 5) * 5);
+    const freeMin = sumBy(free, (f) => f[1] - f[0]);
+    const capacity = Math.floor((freeMin * prefs.fill) / 100);
+    const cand = [];
+    for (const t of o.tasks || []) {
+      if (!isOpen(t) || skip.has("t:" + t.id)) continue;
+      const p = prioOf(t);
+      let g, why;
+      if (t.due_date && t.due_date < today) { g = 0; const n = dayDiff(today, t.due_date); why = n === 1 ? "Venció ayer." : `Venció hace ${n} días.`; }
+      else if (t.due_date === today) { g = 1; why = "Vence hoy."; }
+      else if (!t.due_date && p <= 2) { g = 3; why = "Prioridad alta y sin fecha."; }
+      else continue;
+      cand.push({ kind: "task", id: t.id, title: t.title, min: prefs.taskMin, g, p, why, key: "t:" + t.id });
+    }
+    for (const hb of o.habits || []) {
+      if (skip.has("h:" + hb.id)) continue;
+      const days = (o.byHabit && o.byHabit.get(hb.id)) || new Set();
+      if (habitStatusToday(habitFrequency(hb), days, today) !== "pending") continue;
+      cand.push({ kind: "habit", id: hb.id, title: hb.name, min: prefs.habitMin, g: 2, p: 3, why: "Hábito que toca hoy.", key: "h:" + hb.id });
+    }
+    cand.sort((a, b) => a.g - b.g || a.p - b.p || String(a.title).localeCompare(String(b.title)));
+    const slots = [], left = [], cursor = free.map((f) => [f[0], f[1]]);
+    let used = 0;
+    for (const c of cand) {
+      if (used + c.min > capacity) { left.push({ ...c, reason: "No cabe hoy sin llenar el día." }); continue; }
+      const iv = cursor.find((f) => f[1] - f[0] >= c.min);
+      if (!iv) { left.push({ ...c, reason: "No hay un hueco lo bastante largo." }); continue; }
+      slots.push({ ...c, start: iv[0], end: iv[0] + c.min });
+      iv[0] += c.min;
+      used += c.min;
+    }
+    slots.sort((a, b) => a.start - b.start);
+    return { slots, left, fixed, freeMin, capacity, used, prefs, candidates: cand.length };
+  }
+
+  /* ================= Máquina del tiempo ================= */
+  // Reconstruye ventanas de 30 días a partir de lo que YA está guardado (hábitos, tareas con completed_at, sesiones,
+  // movimientos). No hay copias semanales: si algo se borró, no cuenta. Las sesiones solo llegan a sessionsFrom (90 días).
+  function earliestDay(d) {
+    const days = [];
+    for (const x of d.habits || []) days.push(dayOfTimestamp(x.created_at));
+    for (const x of d.tasks || []) days.push(dayOfTimestamp(x.created_at));
+    for (const x of d.logs || []) days.push(x.day);
+    for (const x of d.transactions || []) days.push(x.tx_date);
+    const ok = days.filter(isDayKey).sort();
+    return ok[0] || null;
+  }
+
+  function windowMetrics(d, from, to) {
+    const keys = [];
+    for (let k = from; k <= to; k = addDays(k, 1)) keys.push(k);
+    const rows = dayActivity(d.habits || [], logsByHabit(d.logs || []), d.tasks || [], d.sessions || [], keys);
+    const tot = periodTotals(rows), first = earliestDay(d);
+    const hasData = !!first && to >= first;
+    let exp = 0, inc = 0;
+    for (const t of d.transactions || []) if (t.tx_date >= from && t.tx_date <= to) { const c = centsFromDb(t.amount); if (t.type === "expense") exp += c; else inc += c; }
+    let open = 0;
+    for (const t of d.tasks || []) {
+      const born = dayOfTimestamp(t.created_at);
+      if (born && born > to) continue;
+      const doneAt = isOpen(t) ? null : dayOfTimestamp(t.completed_at) || born;
+      if (!doneAt || doneAt > to) open++;
+    }
+    const txFirst = (d.transactions || []).map((t) => t.tx_date).filter(isDayKey).sort()[0];
+    return {
+      from, to, hasData,
+      habitPct: hasData ? tot.pct : null,
+      tasksDone: hasData ? tot.tasks : null,
+      focusMs: hasData && (!d.sessionsFrom || from >= d.sessionsFrom) ? tot.ms : null,
+      spendCents: txFirst && to >= txFirst ? exp : null,
+      incomeCents: txFirst && to >= txFirst ? inc : null,
+      openTasks: hasData ? open : null,
+    };
+  }
+
+  const TM_STEPS = [1, 2, 3, 6, 12];
+  function timeTravel(d, today, monthsBack) {
+    const m = TM_STEPS.includes(monthsBack) ? monthsBack : 3;
+    const pastEnd = addMonthsToDay(today, -m);
+    const past = windowMetrics(d, addDays(pastEnd, -29), pastEnd), now = windowMetrics(d, addDays(today, -29), today);
+    const rows = [
+      ["Hábitos cumplidos", "habitPct", (v) => `${v} %`],
+      ["Tareas completadas", "tasksDone", (v) => String(v)],
+      ["Tareas abiertas", "openTasks", (v) => String(v)],
+      ["Concentración", "focusMs", (v) => formatDuration(v)],
+      ["Gasto", "spendCents", (v) => formatEUR(v)],
+    ].map(([label, key, fmt]) => {
+      const a = past[key], b = now[key];
+      const delta = a != null && b != null ? b - a : null;
+      return { label, key, past: a == null ? null : fmt(a), now: b == null ? null : fmt(b), delta, dir: delta == null ? null : delta > 0 ? "up" : delta < 0 ? "down" : "same" };
+    });
+    return { months: m, past, now, rows, noPast: !past.hasData };
+  }
+
+
+  /* ---------- Objetivos e hitos (sección «Plan») ----------
+   * El progreso de un objetivo se mide por HITOS conseguidos (resultados), no por cuántas tareas se han completado.
+   * Las tareas y hábitos enlazados son los mismos registros de siempre: aquí solo se guardan sus ids. */
+  const OBJ_STATUS = ["active", "paused", "done"];
+  const idList = (v) => [...new Set((Array.isArray(v) ? v : []).filter((x) => typeof x === "string" && x))].slice(0, 100);
+  function normMilestones(list) {
+    const out = [], seen = new Set();
+    for (const m of Array.isArray(list) ? list : []) {
+      if (!m || typeof m !== "object") continue;
+      const title = cleanText(m.title, 100);
+      if (!title) continue;
+      let id = typeof m.id === "string" && m.id ? m.id.slice(0, 40) : "m" + out.length;
+      while (seen.has(id)) id += "x";
+      seen.add(id);
+      out.push({ id, title, done: m.done === true, date: isDayKey(m.date) ? m.date : null, task_ids: idList(m.task_ids) });
+    }
+    return out.slice(0, 40);
+  }
+  function objectiveView(o) {
+    const ms = normMilestones(o && o.milestones), done = ms.filter((m) => m.done).length;
+    const key = (m) => m.date || "9999-99-99";
+    const next = ms.filter((m) => !m.done).sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0))[0] || null;
+    const status = OBJ_STATUS.includes(o && o.status) ? o.status : "active";
+    return { id: o && o.id, title: cleanText(o && o.title, 120), why: cleanText(o && o.why, 500), due: isDayKey(o && o.due_date) ? o.due_date : null, status,
+      milestones: ms, done, total: ms.length, pct: ms.length ? Math.round((done / ms.length) * 100) : 0, next,
+      complete: ms.length > 0 && done === ms.length, taskIds: idList(o && o.task_ids), habitIds: idList(o && o.habit_ids) };
+  }
+  // Lo vinculado que sigue existiendo (si se borró una tarea o un hábito, el enlace simplemente desaparece)
+  function objectiveLinks(o, tasks, habits) {
+    const v = objectiveView(o);
+    const tk = new Map((tasks || []).map((t) => [t.id, t])), hb = new Map((habits || []).map((x) => [x.id, x]));
+    return { tasks: v.taskIds.map((id) => tk.get(id)).filter(Boolean), habits: v.habitIds.map((id) => hb.get(id)).filter(Boolean) };
+  }
+
+  // Tareas de un objetivo agrupadas por urgencia, con su avance y la «siguiente»: la más urgente que sigue abierta
+  // (vencida → de hoy → con fecha próxima → sin fecha; a igualdad, mayor prioridad). Es la misma tarea de siempre.
+  function objectiveTasks(o, tasks, today) {
+    const list = objectiveLinks(o, tasks, []).tasks;
+    const g = { overdue: [], today: [], upcoming: [], nodate: [], done: [] };
+    for (const t of list) {
+      if (!isOpen(t)) g.done.push(t);
+      else if (!t.due_date) g.nodate.push(t);
+      else if (t.due_date < today) g.overdue.push(t);
+      else if (t.due_date === today) g.today.push(t);
+      else g.upcoming.push(t);
+    }
+    const byDue = (a, b) => (a.due_date || "9") < (b.due_date || "9") ? -1 : (a.due_date || "9") > (b.due_date || "9") ? 1 : prioOf(a) - prioOf(b);
+    for (const k of ["overdue", "today", "upcoming", "nodate"]) g[k].sort(byDue);
+    const open = g.overdue.length + g.today.length + g.upcoming.length + g.nodate.length;
+    return { groups: g, total: list.length, open, done: g.done.length, pct: list.length ? Math.round((g.done.length / list.length) * 100) : 0,
+      next: g.overdue[0] || g.today[0] || g.upcoming[0] || g.nodate[0] || null };
+  }
+  // Estado de las tareas de un hito. Si todas están hechas y el hito no, la app solo PROPONE marcarlo (no lo hace sola).
+  function milestoneTasks(m, tasks) {
+    const tk = new Map((tasks || []).map((t) => [t.id, t]));
+    const list = idList(m && m.task_ids).map((id) => tk.get(id)).filter(Boolean);
+    const done = list.filter((t) => !isOpen(t)).length;
+    return { tasks: list, total: list.length, done, open: list.length - done, suggestDone: !!m && !m.done && list.length > 0 && done === list.length };
+  }
+  // Color estable por objetivo (tono 0-359 derivado de su id)
+  function objectiveHue(id) { let n = 0; for (const c of String(id || "")) n = (n * 31 + c.charCodeAt(0)) % 360; return n; }
+
+  // Días que faltan para la fecha objetivo (negativo = ya pasó). null si no hay fecha.
+  const objectiveDaysLeft = (o, today) => { const v = objectiveView(o); return v.due ? dayDiff(v.due, today) : null; };
+
+
+  /* ---------- Calendario unificado (solo lee: no copia nada) ----------
+   * Reúne lo que ya existe en otros módulos y lo coloca en su día: tareas con fecha, hitos de objetivos, próximos cobros
+   * de suscripciones y tiempo de concentración. Cada elemento sigue siendo el original. */
+  function calendarMonth(mk, src, today) {
+    const { first, days, last } = monthBounds(mk);
+    const byDay = {}, put = (k, type, item) => { (byDay[k] = byDay[k] || { tasks: [], milestones: [], payments: [], focusMs: 0 }); if (type === "focusMs") byDay[k].focusMs += item; else byDay[k][type].push(item); };
+    const inMonth = (k) => isDayKey(k) && k >= first && k <= last;
+    for (const t of (src && src.tasks) || []) if (inMonth(t.due_date)) put(t.due_date, "tasks", t);
+    for (const o of (src && src.objectives) || []) {
+      const v = objectiveView(o);
+      if (v.status === "paused") continue;
+      for (const m of v.milestones) if (inMonth(m.date)) put(m.date, "milestones", { objective: v, milestone: m });
+    }
+    for (const s of (src && src.subs) || []) {
+      const k = nextCharge(s, first);
+      if (k && inMonth(k)) put(k, "payments", s);
+    }
+    for (const x of (src && src.sessions) || []) {
+      const k = dayOfTimestamp(x.created_at);
+      if (inMonth(k)) put(k, "focusMs", Number(x.duration_ms) || 0);
+    }
+    return { month: mk, label: monthLabel(mk), weeks: monthGrid(mk), byDay, days, today: inMonth(today) ? today : null };
+  }
+  const calendarDayCount = (d) => (d ? d.tasks.length + d.milestones.length + d.payments.length + (d.focusMs ? 1 : 0) : 0);
   return {
     pad, dayKey, todayKey, isDayKey, parseDay, addDays, dayDiff, lastDayKeys, weekdayIndex, weekStart, weekKeys,
     monthKey, addMonths, monthBounds, monthLabel, shortDate, longDate, dayOfTimestamp,
@@ -1197,8 +1485,10 @@
     SUB_CYCLES, SUB_STATUS, subCycle, subStatus, subYearlyCents, subMonthlyCents, addMonthsToDay, addCycle, nextCharge, subSummary,
     DASH_CATALOG, DASH_WIDGETS, DASH_ROW, DASH_MAX_ROWS, dashLayout, moveWidget, placeWidget, clampWidgetSize, widgetSize, sizeFromDrag, dayActivity, periodTotals, savingMilestones, habitStartDay, HABIT_CATEGORIES, HABIT_FREQUENCIES, WEEKDAY_SHORT, WEEKDAY_FULL, FREQ_LABELS, freqToken, parseFreq, freqLabel, HABIT_COLORS, HABIT_COLOR_NAMES, HABIT_ICONS, habitCategory, habitFrequency, habitColor,
     habitDueOn, habitWeekTarget, habitStatusToday, habitStreak, habitBestStreak, habitWeekProgress, weekSummary, habitHeatRows,
-    monthGrid, greeting, tagCounts, PHRASE_STYLES, PHRASE_LENGTHS, PHRASE_DEFAULTS, phrasePrefs, phraseOfDay,
+    monthGrid, greeting, tagCounts,
     timerPhase, clock, csvText, buildTransactionsCsv, buildBackup, legacyFromStorage, parseCloudspaceBackup, planImport,
     EMAIL_RE, MIN_PASSWORD, validateAuth, authErrorText, dataErrorText,
+    adminName, adminTime, adminStatus, ADMIN_STATUS_LABEL, adminLastSeen, adminStats, adminInsights, adminConf, MODULE_LABEL, pearson,
+    minLabel, OBJ_STATUS, normMilestones, objectiveView, objectiveLinks, objectiveTasks, milestoneTasks, objectiveHue, objectiveDaysLeft, calendarMonth, calendarDayCount, copilotPrefs, copilotFree, scheduleStages, scheduleNow, planDay, earliestDay, windowMetrics, timeTravel, TM_STEPS,
   };
 });

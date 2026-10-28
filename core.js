@@ -21,20 +21,42 @@ let user = null;
 const state = {
   tasks: [], lists: [], steps: [],
   habits: [], logs: [],
-  journal: [], ideas: [], ideasReady: true, subs: [], subsReady: true,
+  journal: [], ideas: [], ideasReady: true, subs: [], subsReady: true, objectives: [], objectivesReady: true,
   intel: { enabled: true, expires_at: null, mode: "hybrid", stored: false, ready: true }, intelItems: [], transactions: [], budgets: [], goals: [],
+  isAdmin: false,
   timer: null, sessions: [], routines: [], routineSteps: [],
 };
 
 // Cada archivo registra aquí su función de pintado
 const renderers = [];
+let lastRenderErrorAt = 0;
+// Barras de las estadísticas compactas (.sx-bar > i): ancho en % y título accesible con la etiqueta oculta
+function setBar(id, pct) { const el = document.getElementById(id); if (el) el.style.width = Math.max(0, Math.min(100, Math.round(pct || 0))) + "%"; }
+function syncStatTitles() {
+  document.querySelectorAll(".sx").forEach((c) => {
+    const label = c.querySelector("small, .tk-label, .stat-label"), val = c.querySelector("strong, .tk-num, .stat-value, .fin-ring span");
+    const foot = c.querySelector("em, .stat-foot");
+    const t = [label && label.textContent, val && val.textContent, foot && foot.textContent].map((x) => (x || "").trim()).filter(Boolean);
+    const txt = t.length > 1 ? `${t[0]}: ${t.slice(1).join(" · ")}` : t[0] || "";
+    if (txt && c.title !== txt) c.title = txt;
+  });
+}
+
 function renderAll() {
+  let failed = 0;
   for (const fn of renderers) {
     try {
       fn();
     } catch (e) {
+      failed++;
       console.error(e);
     }
+  }
+  try { syncStatTitles(); } catch (_) { /* solo títulos */ }
+  // Un fallo al pintar una sección ya no es silencioso: un aviso claro, como mucho cada 10 s
+  if (failed && typeof toast === "function" && Date.now() - lastRenderErrorAt > 10000) {
+    lastRenderErrorAt = Date.now();
+    toast("Una parte de la pantalla no se pudo mostrar. Tus datos están a salvo; recarga la página si sigue así.", 7000);
   }
 }
 
@@ -78,6 +100,14 @@ function fmt(ms) {
 /* ---------- DOM ---------- */
 
 // Crea un elemento de forma segura (el texto siempre va como texto, nunca como HTML)
+// Icono SVG de la página (los símbolos #i-* de index.html). Se usa en vez de emojis o signos de texto sueltos.
+function ico(name, cls) {
+  const NS = "http://www.w3.org/2000/svg", s = document.createElementNS(NS, "svg"), u = document.createElementNS(NS, "use");
+  s.setAttribute("class", "ico" + (cls ? " " + cls : "")); s.setAttribute("aria-hidden", "true");
+  u.setAttribute("href", "#i-" + name); s.append(u);
+  return s;
+}
+
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {

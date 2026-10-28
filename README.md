@@ -66,3 +66,43 @@ Todos los movimientos (gastos e ingresos) piden un **concepto** obligatorio (no 
 - **Textos editables:** Preferencias > «Editar textos». Solo textos fijos con id estable (menús, títulos, botones; ver `texts.js`); nunca valores dinámicos. «Restaurar» devuelve el original exacto.
 - **Nube de Intelligence:** un único botón la abre y la cierra y conserva su estado.
 - **Límites conocidos:** no existe un modelo de objetivos con hitos propios (los hitos son cada 25 % de una meta de ahorro) ni una tabla de eventos de calendario (el bloque usa vencimientos de tareas).
+
+## Copiloto del día, Máquina del tiempo y botón Filtros (sin migración)
+- **Copiloto del día** (widget del Resumen, `copilot.js`): propone un plan del día con reglas, sin IA. Orden: vencidas, con fecha hoy, hábitos pendientes y tareas urgentes sin fecha. Respeta tu horario («Mi horario»: inicio, fin, % a rellenar, bloques ocupados) y solo propone: nada se cambia hasta que pulsas «Usar este plan», «Hecho», «Hoy no» o «Pasar a mañana». Horario en `user_prefs.dashboard.copilot`; el estado del plan se guarda en el dispositivo.
+- **Máquina del tiempo** (widget, desactivado por defecto; se añade desde Personalizar): compara hoy con hace 1, 2, 3, 6 o 12 meses reconstruyendo ventanas de 30 días desde datos existentes. No hay instantáneas: lo borrado no cuenta y el tiempo de concentración solo llega a 90 días. Si no hay datos, lo dice.
+- **Filtros**: en Tareas, etiqueta, prioridad y orden están ahora en un único botón desplegable con insignia de filtros activos y «Quitar filtros».
+- Los layouts guardados no añaden widgets nuevos solos: el Copiloto se añade desde Personalizar.
+
+## Tanda de robustez (sin migración)
+- `supabase-js` 2.117.3 va incluido en `vendor/` (ya no se descarga de una CDN): versión fija, funciona sin conexión y no depende de terceros.
+- Política de contenido (CSP) en `index.html`: solo scripts propios; conexiones solo a tu Supabase; tipografías de Google Fonts. El script del tema pasó a `theme.js`.
+- El service worker guarda también las tipografías tras verlas una vez.
+- Si una sección falla al pintarse, sale un aviso claro (antes solo quedaba en la consola).
+- La copia JSON (Preferencias → Exportar todo) incluye ahora ideas y suscripciones.
+- Si usas un dominio propio de Supabase (no `*.supabase.co`), añádelo a `connect-src` en la CSP.
+
+## Varias personas y un administrador (multiusuario.sql)
+- `multiusuario.sql` sustituye a `single-user.sql`: cada persona solo ve sus filas y solo el administrador (tabla `app_admins`) usa Intelligence. El servidor lo exige con `is_admin()`; la app además oculta la sección (menú, nube, widget y ajustes) a los demás.
+- Si falta ejecutar ese archivo, nadie verá Intelligence (la app lo trata como «no administrador»).
+- Los datos de cada persona están separados por RLS, pero quien administra el proyecto de Supabase puede verlos desde su panel: conviene avisar a quien la use.
+
+## Tema «Mix» y nuevo Diario (sin migración)
+- **Tema Mix** (`mix.css`): se elige en Preferencias → Apariencia. Mismas variables que los temas oscuro y claro; fondo cálido con cielo discreto, acento naranja, barra lateral en el PC y dock flotante en el móvil. El botón sol/luna alterna oscuro↔claro. Fuentes: Manrope e IBM Plex Mono.
+- **Diario** (todos los temas): cuaderno central con renglones, hojas apiladas con los últimos días a la izquierda e ideas sueltas y preguntas a la derecha. Usa los colores del tema activo (en Mix el papel es crema). En pantallas estrechas se apila. El estado de ánimo del diseño original no se incluye: necesitaría una columna nueva en la base de datos.
+
+
+## Estadísticas compactas y «Mi horario»
+
+- **Estadísticas compactas**: en Resumen, Tareas, Hábitos, Finanzas y Tiempo cada estadística es ahora una tarjeta baja con icono, número y una barra a la derecha. Las etiquetas ya no se ven, pero siguen en el HTML para lectores de pantalla y en el título emergente de cada tarjeta (`syncStatTitles` en `core.js`). Estilos en `pages.css` (`.sx`).
+- **Mi horario** (`schedule.js`): bloque del Resumen, visible por defecto y colocado el primero la primera vez. Muestra en qué etapa de tu horario estás con un tambor vertical (las etapas que vienen, arriba; la actual, en el centro; las pasadas, abajo) que gira de arriba abajo cuando cambia la etapa. Las flechas ▴ ▾ permiten mirar otras etapas y el tambor vuelve solo a «ahora» a los 7 s.
+- No guarda datos nuevos ni necesita SQL: usa los mismos bloques fijos que el Copiloto (`user_prefs.dashboard.copilot.blocks`), que se editan con **Editar** en el propio bloque. La lógica (`scheduleStages`, `scheduleNow`) está en `logic.js` con pruebas. «Restablecer el Resumen» conserva tu horario.
+
+## Administración (solo administrador)
+
+Apartado visible solo para la cuenta de `app_admins` (lo exige el servidor con `is_admin()`). Tiene Resumen, Usuarios (pausar/reactivar), Uso, Opiniones y Ajustes de la «pregunta suave».
+
+- Orden de SQL: `migracion-v2` … `v10`, después `multiusuario.sql` y por último `migracion-v11.sql`.
+- Mide solo segundos de uso por día y apartado, aperturas y número de registros. Nunca el contenido de nadie. El modo invitado no se mide. Cada persona lo ve explicado en Preferencias > «Privacidad y uso».
+- Pausar a alguien bloquea el acceso a sus datos (no los borra) y se puede revertir; a un administrador no se le puede pausar.
+- Para ver el diseño con datos de ejemplo: en modo invitado, en la consola del navegador, `localStorage.setItem("mipanel.adminDemo","true")` y recargar.
+- Subir cambios con un comando: `./tools/subir.sh "mensaje"` (pruebas, comprobación de la caché offline, sube el número de caché, commit y push).

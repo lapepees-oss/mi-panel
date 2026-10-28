@@ -3,62 +3,44 @@
 // Los bloques se pueden ocultar y reordenar (diseño guardado en este navegador) y hay un cronómetro integrado
 // que usa el mismo temporizador que la página Tiempo. No guarda datos propios: lee state (la misma fuente que Hábitos, Tareas, Diario y Finanzas).
 
-/* ---------- Frase del día (sustituye al saludo) ----------
- * La frase depende solo de la fecha local (Logic.phraseOfDay): no se guarda nada, así que no cambia al recargar ni al
- * volver a entrar el mismo día y es igual en todos tus dispositivos. Los ajustes viven en este navegador. */
-const phrasePrefsNow = () => Logic.phrasePrefs((upDash() || {}).phrase ?? store.get("phrase", null)); // por usuario (con el diseño del Resumen)
-let phraseKey = ""; // lo último pintado: si no cambia, no se toca el DOM
-
-function renderPhrase(today) {
-  const p = phrasePrefsNow(), box = $("#dbPhrase");
-  show(box, p.show); // oculto = desaparece del flujo y el resto sube, sin hueco
-  const pool = PHRASES.filter((x) => p.style === "mixto" || x.s === p.style);
-  const ph = Logic.phraseOfDay(today, pool.length ? pool : PHRASES);
-  const sig = JSON.stringify([today, p, ph && ph.t]);
-  if (sig === phraseKey) return;
-  phraseKey = sig;
-  box.classList.toggle("plain", !p.accent);
-  $("#dbPhraseText").textContent = ph ? ph.t : "Hoy, un paso pequeño también cuenta.";
-  const note = ph ? (p.length === "ninguna" ? "" : p.length === "larga" ? `${ph.a} ${ph.b}` : ph.a) : "";
-  $("#dbPhraseNote").textContent = note;
-  show($("#dbPhraseNote"), !!note);
-  const ld = Logic.longDate(today);
-  $("#dbDate").textContent = ld.charAt(0).toUpperCase() + ld.slice(1);
-  show($("#dbDate"), p.date);
+/* Mapa de constancia adaptable: cuantas semanas caben (de 1 a 5) con casillas de al menos 9 px; si no caben, desaparecen las más antiguas */
+let heatShown = 5;
+function heatWeeksFit() {
+  const box = $("#dbHeat"), w = box ? box.clientWidth : 0;
+  if (!w) return heatShown || 5; // oculto o sin medir: conserva lo último
+  const narrow = matchMedia("(max-width: 560px)").matches;
+  const fixed = (narrow ? 22 + 34 : 130 + 42) + 2 * (narrow ? 8 : 14); // nombre + porcentaje + huecos de la fila
+  const wkW = 7 * 9 + 6 * (narrow ? 2 : 4), gap = narrow ? 2 : 4;
+  return Math.max(1, Math.min(5, Math.floor((w - fixed + gap) / (wkW + gap))));
 }
-
-function syncPhraseControls() {
-  const p = phrasePrefsNow();
-  $("#phShow").checked = p.show; $("#phStyle").value = p.style; $("#phLen").value = p.length;
-  $("#phDate").checked = p.date; $("#phAccent").checked = p.accent;
+if (typeof ResizeObserver === "function") {
+  let raf = 0;
+  const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (currentPage === "dashboard" && !dataLoading() && heatWeeksFit() !== heatShown) renderDashboard(); }); });
+  document.addEventListener("DOMContentLoaded", () => { const b = $("#dbHeat"); if (b) ro.observe(b); });
+  if (document.readyState !== "loading") { const b = $("#dbHeat"); if (b) ro.observe(b); }
 }
-function savePhrase() {
-  upSet("dash", { ...(upDash() || {}), phrase: { show: $("#phShow").checked, style: $("#phStyle").value, length: $("#phLen").value, date: $("#phDate").checked, accent: $("#phAccent").checked } });
-  renderPhrase(todayKey());
-}
-["phShow", "phStyle", "phLen", "phDate", "phAccent"].forEach((id) => $("#" + id).addEventListener("change", savePhrase));
 
 function renderDashboard() {
   const today = todayKey();
   const byHabit = habitDays();
 
-  /* Cabecera */
-  renderPhrase(today);
-
   /* Métricas */
   const open = state.tasks.filter((t) => Logic.isOpen(t));
   const overdue = open.filter((t) => Logic.isOverdue(t, today)).length;
   $("#dbTasks").textContent = String(open.length);
+  setBar("dbTasksBar", state.tasks.length ? ((state.tasks.length - open.length) / state.tasks.length) * 100 : 0); // parte ya completada
   $("#dbTasksFoot").textContent = !open.length ? "Todo despejado" : overdue ? `${plural(overdue, "vencida", "vencidas")}` : "Ninguna vencida";
 
   const status = state.habits.map((hb) => Logic.habitStatusToday(Logic.habitFrequency(hb), byHabit.get(hb.id) || new Set(), today));
   const due = status.filter((s) => s !== "off").length;
   const done = status.filter((s) => s === "done").length;
   $("#dbHabits").textContent = `${done}/${due}`;
+  setBar("dbHabitsBar", due ? (done / due) * 100 : 0);
   $("#dbHabitsFoot").textContent = !state.habits.length ? "Crea tu primer hábito" : done >= due ? "¡Todos cumplidos!" : `Faltan ${due - done}`;
 
   const sum = Logic.weekSummary(state.habits, byHabit, today);
   $("#dbWeekGoal").textContent = sum.total ? `${sum.done}/${sum.total}` : "—";
+  setBar("dbWeekGoalBar", sum.total ? sum.pct : 0);
   $("#dbWeekGoalFoot").textContent = sum.total ? `${sum.pct}% de los hábitos de la semana` : "Sin hábitos esta semana";
 
   const mk = Logic.monthKey(today);
@@ -71,20 +53,27 @@ function renderDashboard() {
   $("#dbBalanceFoot").textContent = state.transactions.some((t) => Logic.monthKey(t.tx_date) === mk) ? `Ingresos − gastos de ${Logic.monthLabel(mk)}` : "Sin movimientos este mes";
 
   /* Mapa de constancia: una fila por hábito. Solo la casilla de hoy se puede marcar desde aquí. */
-  const rows = Logic.habitHeatRows(state.habits, byHabit, today, 35);
-  const cells = Logic.heatCells(state.habits, byHabit, today, 35);
-  $("#heatmapCaption").textContent = `${Logic.activeDays(cells)} de 35 días activos`;
+  const hw = heatWeeksFit(), hdays = hw * 7; heatShown = hw;
+  const rows = Logic.habitHeatRows(state.habits, byHabit, today, hdays);
+  const cells = Logic.heatCells(state.habits, byHabit, today, hdays);
+  $("#heatmapCaption").textContent = `${Logic.activeDays(cells)} de ${hdays} días activos`;
   show($("#dbHeatEmpty"), rows.length === 0);
   $("#dbHeat").replaceChildren(
-    ...rows.map((r) => h("div", { class: "db-heat-row" },
-      h("span", { class: "db-heat-name", title: r.habit.name, text: `${r.habit.emoji || "🌱"} ${r.habit.name}` }),
-      h("div", { class: "db-heat-cells", style: `--hc:${Logic.habitColor(r.habit)}` },
-        ...r.cells.map((c) => {
-          const label = `${r.habit.name}, ${Logic.longDate(c.key)}: ${c.state === "done" ? "cumplido" : c.state === "miss" ? "no cumplido" : c.state === "off" ? "no programado" : "sin registro"}`;
-          return c.key === today
-            ? h("button", { type: "button", class: "dh-cell " + c.state + " today", title: label + " (pulsa para cambiar)", "aria-label": label, "aria-pressed": String(c.state === "done"), onclick: () => setHabitDay(r.habit.id, today, c.state !== "done") })
-            : h("i", { class: "dh-cell " + c.state, title: label });
-        })))));
+    ...rows.map((r) => {
+      const done = r.cells.filter((c) => c.state === "done").length, due = r.cells.filter((c) => c.state === "done" || c.state === "miss").length;
+      const mk = (c) => {
+        const label = `${r.habit.name}, ${Logic.longDate(c.key)}: ${c.state === "done" ? "cumplido" : c.state === "miss" ? "no cumplido" : c.state === "off" ? "no programado" : "sin registro"}`;
+        return c.key === today
+          ? h("button", { type: "button", class: "dh-cell " + c.state + " today", title: label + " (pulsa para cambiar)", "aria-label": label, "aria-pressed": String(c.state === "done"), onclick: () => setHabitDay(r.habit.id, today, c.state !== "done") })
+          : h("i", { class: "dh-cell " + c.state, title: label });
+      };
+      const weeks = [];
+      for (let i = 0; i < r.cells.length; i += 7) weeks.push(h("div", { class: "dh-week" }, ...r.cells.slice(i, i + 7).map(mk)));
+      return h("div", { class: "db-heat-row" },
+        h("span", { class: "db-heat-name", title: r.habit.name }, h("span", { class: "dh-emoji", text: r.habit.emoji || "🌱" }), h("span", { class: "dh-nm", text: " " + r.habit.name })),
+        h("div", { class: "db-heat-cells", style: `--hc:${Logic.habitColor(r.habit)};--wk:${weeks.length}` }, ...weeks),
+        h("span", { class: "db-heat-pct", title: `${done} de ${due} días programados`, text: due ? Math.round((done / due) * 100) + "%" : "—" }));
+    }));
 
   /* Resumen semanal (misma definición que Hábitos) */
   $("#progressRing").style.setProperty("--pct", String(sum.pct));
@@ -133,31 +122,37 @@ function renderDashboard() {
   $("#dashBudgetLeft").classList.toggle("neg", !!(bs.total && bs.total.over));
   $("#dashBudgetFoot").textContent = bs.total ? (bs.total.over ? "Te has pasado del presupuesto mensual." : `Has gastado el ${bs.total.pct}% de ${Logic.formatEUR(bs.total.limit)}.`) : "Define un presupuesto en Finanzas.";
 
-  /* Filosofía del día */
-  const q = quoteOfDay(today);
-  $("#dbQuote").textContent = "“" + q.text + "”";
-  $("#dbQuoteBy").textContent = q.by ? "— " + q.by : "";
+  renderDashFinanceExtra(bs, totals, today);
 }
 
-/* ---------- Acciones rápidas (abren los formularios existentes) ---------- */
-$("#dbNewTask").addEventListener("click", () => openTaskWizard());
-$("#dbNewHabit").addEventListener("click", () => openHabitForm());
-$("#dbNewNote").addEventListener("click", () => { location.hash = "#/journal"; setTimeout(() => { if (typeof setJournalTab === "function") setJournalTab("diario"); const t = $("#jFull"); if (t) t.focus(); }, 80); });
+/* Detalle del bloque «Finanzas del mes»: barra del presupuesto, mayores gastos y media diaria. Solo datos reales. */
+function renderDashFinanceExtra(bs, totals, today) {
+  const bar = $("#dashBudgetBar");
+  if (bs.total) {
+    bar.hidden = false;
+    const pct = Math.max(0, Math.min(100, bs.total.pct));
+    $("#dashBudgetFill").style.width = pct + "%";
+    bar.classList.toggle("over", !!bs.total.over);
+    bar.setAttribute("aria-valuenow", String(Math.round(pct)));
+  } else bar.hidden = true;
 
-$("#dbQuoteHistory").addEventListener("click", () => {
-  const dlg = $("#sheet-dialog");
-  const today = todayKey();
-  const items = Array.from({ length: 14 }, (_, i) => {
-    const key = Logic.addDays(today, -i);
-    const q = quoteOfDay(key);
-    return h("li", {}, h("small", { text: i === 0 ? "Hoy" : Logic.longDate(key) }), h("p", { text: "“" + q.text + "”" + (q.by ? " — " + q.by : "") }));
-  });
-  dlg.replaceChildren(h("div", { class: "sheet" },
-    h("h2", { style: "margin-top:0", text: "Filosofía de los últimos días" }),
-    h("ul", { class: "db-quote-list" }, ...items),
-    h("div", { class: "row", style: "justify-content:flex-end;margin-top:12px" }, h("button", { type: "button", class: "secondary", text: "Cerrar", onclick: () => closeDialog(dlg) }))));
-  openDialog(dlg);
-});
+  const cats = Object.entries(totals.byCategory).filter((c) => c[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const sum = Math.max(1, totals.expense);
+  $("#dashCatsBox").hidden = !cats.length;
+  $("#dashTopCats").replaceChildren(...cats.map(([name, v]) => h("li", {},
+    h("span", { class: "fc-name", text: name }),
+    h("span", { class: "fc-bar", "aria-hidden": "true" }, h("i", { style: `width:${Math.max(4, Math.round((v / sum) * 100))}%` })),
+    h("b", { text: Logic.formatEUR(v) }))));
+
+  const foot = $("#dashFinFoot");
+  const day = Number(today.slice(8, 10));
+  const parts = [];
+  if (totals.expense > 0) parts.push(h("span", {}, h("small", { text: "Gasto medio al día" }), h("b", { text: Logic.formatEUR(Math.round(totals.expense / day)) })));
+  if (totals.income > 0 || totals.expense > 0) parts.push(h("span", {}, h("small", { text: "Balance" }), h("b", { class: totals.balance < 0 ? "neg" : totals.balance > 0 ? "pos" : "", text: Logic.formatEUR(totals.balance) })));
+  foot.hidden = !parts.length;
+  foot.replaceChildren(...parts);
+}
+
 
 renderers.push(renderDashboard);
 
@@ -171,7 +166,7 @@ renderers.push(renderDashboard);
 let dashEditing = false, drawerCollapsed = false;
 const GAP = 14, ROW_PX = Logic.DASH_ROW, ROW_STEP = ROW_PX + GAP;
 const rowsToPx = (n) => n * ROW_PX + (n - 1) * GAP;
-const guestHidden = () => (isGuest() ? ["suggestion"] : []); // CloudSpace Intelligence es de la cuenta: el invitado no la ve
+const guestHidden = () => (isGuest() || !state.isAdmin ? ["suggestion"] : []); // CloudSpace Intelligence es de la cuenta: el invitado no la ve
 const dashLayoutNow = () => {
   const l = Logic.dashLayout(upDash());
   for (const id of guestHidden()) if (!l.hidden.includes(id)) l.hidden.push(id);
@@ -243,7 +238,6 @@ function applyDashLayout(force) {
   const b = $("#dbCustomize");
   b.setAttribute("aria-pressed", String(dashEditing));
   b.textContent = dashEditing ? "⚙ Editando…" : "⚙ Personalizar";
-  if (dashEditing) syncPhraseControls();
   renderNewWidgets(layout, todayKey());
 }
 
@@ -271,7 +265,6 @@ const MINI = {
   week: () => MP("mrow", mpI("ring"), h("div", { class: "mcol" }, mpI("ln"), mpI("ln s"))),
   activity: () => MP("bars", ...[40, 70, 25, 55, 85, 35, 60].map((n) => h("i", { style: `height:${n}%` }))),
   finance: () => MP("g3", ...Array.from({ length: 3 }, () => h("div", { class: "mp-tile" }, mpI("ln s"), mpI("ln")))),
-  quote: () => MP("mcol", mpI("qm"), mpI("ln"), mpI("ln"), mpI("ln s")),
   note: () => MP("mcol", mpI("ln s"), h("div", { class: "mp-box" })),
   next: () => MP("mcol", mpI("ln"), h("div", { class: "mp-pills" }, mpI(), mpI()), mpI("btn")),
   budget: () => MP("mcol", ...Array.from({ length: 3 }, (_, i) => h("div", { class: "mp-meter" }, mpI("ln s"), h("div", { class: "mp-bar" }, h("i", { style: `width:${[80, 45, 62][i]}%` }))))),
@@ -282,6 +275,9 @@ const MINI = {
   saving: () => MP("mcol", mpI("ln s"), h("div", { class: "mp-bar" }, h("i", { style: "width:35%" })), h("div", { class: "mp-pills" }, mpI("ln xs"), mpI("ln xs"), mpI("ln xs"))),
   stats: () => MP("g3", ...Array.from({ length: 3 }, () => h("div", { class: "mp-tile" }, mpI("ln"), mpI("ln s")))),
   suggestion: () => MP("mcol", h("div", { class: "mp-row" }, mpI("star"), mpI("ln")), mpI("ln"), mpI("ln s")),
+  copilot: () => MP("mcol", ...Array.from({ length: 3 }, () => h("div", { class: "mp-row" }, mpI("ln xs"), mpI("ln")))),
+  objectives: () => MP("mcol", ...Array.from({ length: 2 }, () => h("div", { class: "mp-row" }, mpI("dot"), mpI("ln"), mpI("ln xs")))),
+  timemachine: () => MP("g2", ...Array.from({ length: 2 }, () => h("div", { class: "mp-tile" }, mpI("ln s"), mpI("ln"), mpI("ln s")))),
 };
 const miniFor = (id) => (MINI[id] || (() => MP("mcol", mpI("ln"), mpI("ln s"))))();
 
@@ -533,8 +529,8 @@ $("#dbCustomize").addEventListener("click", () => { dashEditing = !dashEditing; 
 $("#dbLayoutDone").addEventListener("click", () => { dashEditing = false; applyDashLayout(true); $("#dbCustomize").focus(); });
 $("#dbLayoutReset").addEventListener("click", async () => {
   if (!(await askConfirm({ title: "¿Restablecer el Resumen?", text: "Se recupera el diseño original: orden, tamaños, bloques visibles y ajustes. Tus datos no cambian.", confirmLabel: "Restablecer" }))) return;
-  upSet("dash", null);
-  syncPhraseControls(); phraseKey = ""; renderPhrase(todayKey());
+  const keepSchedule = (upDash() || {}).copilot; // tu horario no es parte del diseño: no se pierde al restablecer
+  upSet("dash", keepSchedule ? { copilot: keepSchedule } : null);
   applyDashLayout(true);
   toast("Resumen restablecido.");
 });

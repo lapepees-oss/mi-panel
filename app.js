@@ -4,7 +4,7 @@
 
 const PAGE_NAMES = {
   dashboard: "Resumen", habits: "Hábitos", tasks: "Tareas", journal: "Diario",
-  finance: "Finanzas", timer: "Cronómetro", intelligence: "Intelligence", prefs: "Preferencias",
+  finance: "Finanzas", timer: "Cronómetro", plan: "Plan", intelligence: "Intelligence", admin: "Administración", prefs: "Preferencias",
 };
 let currentPage = "dashboard";
 let channel = null;
@@ -16,7 +16,7 @@ const pageTitle = () => `${PAGE_NAMES[currentPage]} · Cloudspace`;
 // Solo hay rutas con el formato #/pagina. Los demás hashes (tokens de Supabase) se ignoran.
 function routeFromHash() {
   const m = /^#\/([a-z]+)/.exec(location.hash);
-  const allowed = (n) => PAGE_NAMES[n] && (n !== "intelligence" || intelActive()); // Intelligence caducada: no hay ruta
+  const allowed = (n) => PAGE_NAMES[n] && (n !== "intelligence" || intelActive()) && (n !== "admin" || adminActive()); // Intelligence caducada: no hay ruta
   if (m && allowed(m[1])) return m[1];
   const saved = store.get("page", "dashboard");
   return allowed(saved) ? saved : "dashboard";
@@ -71,7 +71,7 @@ function moveNavIndicator() {
     if (!nav.offsetParent && getComputedStyle(nav).position !== "fixed") continue; // oculta en este tamaño de pantalla
     let ind = nav.querySelector(":scope > .nav-ind");
     if (!ind) { ind = h("span", { class: "nav-ind", "aria-hidden": "true" }); nav.prepend(ind); }
-    const a = nav.querySelector('a[aria-current="page"]');
+    const a = nav.querySelector('[aria-current="page"]');
     if (!a || !a.offsetWidth) { ind.classList.remove("on"); continue; }
     ind.style.width = a.offsetWidth + "px"; ind.style.height = a.offsetHeight + "px";
     ind.style.transform = `translate(${a.offsetLeft}px, ${a.offsetTop}px)`;

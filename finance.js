@@ -88,6 +88,9 @@ function renderFinance() {
 
   $("#finIncome").textContent = Logic.formatEUR(totals.income);
   $("#finExpense").textContent = Logic.formatEUR(totals.expense);
+  const finFlow = totals.income + totals.expense; // cada barra = parte del movimiento total del mes
+  setBar("finIncomeBar", finFlow ? (totals.income / finFlow) * 100 : 0);
+  setBar("finExpenseBar", finFlow ? (totals.expense / finFlow) * 100 : 0);
   const bal = $("#finBalance");
   bal.textContent = Logic.formatEUR(totals.balance);
   bal.classList.toggle("neg", totals.balance < 0);

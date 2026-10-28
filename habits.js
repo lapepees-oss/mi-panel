@@ -263,8 +263,6 @@ function renderHabits() {
   $("#habitList").replaceChildren(...shown.map((hb) => habitCard(hb, wk, byHabit, today)));
   show($("#habitEmpty"), shown.length === 0);
   $("#habitEmptyText").textContent = state.habits.length ? `No tienes hábitos en «${habitCat}». Cambia de categoría o crea uno nuevo.` : "Aún no tienes hábitos. Crea el primero con «+ Nuevo hábito» y empieza hoy.";
-  const note = motivationOfDay(today);
-  $("#habitNote").textContent = typeof note === "string" ? note : note.text;
 
   // Calendario de constancia + día elegido (editable, también fechas pasadas)
   const cells = Logic.heatCells(state.habits, byHabit, today, 35);

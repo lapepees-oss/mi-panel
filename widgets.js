@@ -27,11 +27,12 @@ function renderWNext(body, today) {
   if (!t) return body.replaceChildren(wState("empty", "No tienes tareas pendientes. Buen momento para respirar.", ["Crear una tarea", "#/tasks"]));
   const di = Logic.dueInfo(t.due_date, today);
   const why = !t.due_date ? "Sin fecha, pero es la de mayor prioridad." : t.due_date < today ? "Está vencida: puedes hacerla, aplazarla o cerrarla." : t.due_date === today ? "Es para hoy." : "Es la siguiente con fecha.";
-  body.replaceChildren(h("div", { class: "w-next" },
+  body.replaceChildren(h("div", { class: "w-next", title: why },
     h("strong", { class: "w-next-title", text: t.title }),
-    h("div", { class: "w-chips" }, di ? h("span", { class: "badge " + di.cls, text: di.text }) : null, h("span", { class: "badge p" + Logic.prioOf(t), text: (PRIORITIES.find((p) => p[0] === String(Logic.prioOf(t))) || [, "P4 · Normal"])[1] })),
-    h("p", { class: "muted", text: why }),
-    h("div", { class: "row" }, h("button", { type: "button", class: "primary-btn small", text: "Completar", onclick: () => setStatus(t.id, "done") }), h("button", { type: "button", class: "secondary small", text: "Abrir", onclick: () => openTask(t.id) }))));
+    h("div", { class: "w-nrow" },
+      h("div", { class: "w-chips" }, di ? h("span", { class: "badge " + di.cls, text: di.text }) : null, h("span", { class: "badge p" + Logic.prioOf(t), text: (PRIORITIES.find((p) => p[0] === String(Logic.prioOf(t))) || [, "P4 · Normal"])[1] })),
+      h("div", { class: "row" }, h("button", { type: "button", class: "primary-btn small", title: "Completar", "aria-label": "Completar", onclick: () => setStatus(t.id, "done") }, ico("check")), h("button", { type: "button", class: "secondary small", text: "Abrir", onclick: () => openTask(t.id) }))),
+    h("small", { class: "muted w-why", text: why })));
 }
 
 /* ---------- Presupuesto por categorías ---------- */
@@ -73,9 +74,12 @@ function renderWFocus(body, today) {
   const rows = Logic.dayActivity([], new Map(), [], state.sessions, wk);
   const week = rows.reduce((n, r) => n + r.ms, 0), tod = (rows.find((r) => r.key === today) || { ms: 0 }).ms;
   const count = state.sessions.filter((s) => wk.includes(Logic.dayOfTimestamp(s.created_at))).length;
-  if (!count) return body.replaceChildren(wState("empty", "Aún no hay sesiones esta semana.", ["Abrir el cronómetro", "#/timer"]));
-  body.replaceChildren(h("div", { class: "w-stats" }, wStat("Hoy", tod ? Logic.formatDuration(tod) : "—"), wStat("Esta semana", Logic.formatDuration(week), plural(count, "sesión", "sesiones"))),
-    h("a", { class: "link-button", href: "#/timer", text: "Abrir el cronómetro ↗" }));
+  const max = Math.max(1, ...rows.map((r) => r.ms)), LET = ["L", "M", "X", "J", "V", "S", "D"];
+  body.replaceChildren(h("div", { class: "w-focus" },
+    h("div", { class: "wf-main" }, h("strong", { text: tod ? Logic.formatDuration(tod) : "0 min" }), h("small", { text: "hoy" })),
+    h("div", { class: "wf-bars", role: "img", "aria-label": `Concentración de la semana: ${Logic.formatDuration(week)}` },
+      ...rows.map((r, i) => h("span", { class: "wf-day" + (r.key === today ? " is-today" : ""), title: r.ms ? Logic.formatDuration(r.ms) : "Sin sesiones" }, h("i", { style: `height:${r.ms ? Math.max(12, Math.round((r.ms / max) * 100)) : 6}%` }), h("em", { text: LET[i] })))),
+    h("div", { class: "wf-foot" }, `Semana ${week ? Logic.formatDuration(week) : "—"} · ${plural(count, "sesión", "sesiones")}`)));
 }
 
 /* ---------- Notas rápidas y calendario ---------- */

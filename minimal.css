@@ -1,0 +1,51 @@
+/* Temas «Minimal» (claro) y «Minimal oscuro»: papel cálido o grafito, líneas finas, esquinas suaves y un único acento verde salvia.
+   Se activan con html[data-theme="minimal"] / html[data-theme="minimal-dark"] y usan las mismas variables que el resto de temas,
+   así que todas las secciones los heredan sin cambios. */
+:root[data-theme="minimal"] {
+  color-scheme: light;
+  --bg: #f3f0ea; --surface: #fcfbf8; --surface2: #f7f4ee; --surface3: #ece8df;
+  --text: #2c2b29; --muted: #8e897f; --line: #e6e1d6; --line2: #d6d0c3;
+  --primary: #5f8a76; --primary2: #4f7864; --primary-soft: #e3ece7; --on-primary: #ffffff;
+  --mint: #5f8a76; --mint-soft: #e3ece7; --peach: #c68a4e; --peach-soft: #f6e9da;
+  --blue: #6c86a8; --blue-soft: #e6ecf3; --pink: #b9798a; --pink-soft: #f4e6ea;
+  --danger: #c0504d; --danger-soft: #f7e4e1; --warn: #b5651d;
+  --shadow: 0 1px 2px rgba(70, 55, 30, .05), 0 14px 28px -18px rgba(70, 55, 30, .22); --radius: 18px;
+  --heat0: #ebe7de; --heat1: #cfdcd4; --heat2: #a9c3b5; --heat3: #7fa690; --heat4: #5f8a76; --heat-line: #ddd8cc;
+  --bg-glow: radial-gradient(900px 420px at 15% -10%, #fff8e8 0%, transparent 70%); --card-bg: #fcfbf8; --input-bg: #f8f6f1; --sidebar-bg: rgba(243, 240, 234, .94);
+  --paper-bg: #fcfbf8; --paper-ink: #2c2b29; --paper-muted: #8e897f; --paper-rule: rgba(44, 43, 41, .1); --paper-margin: rgba(95, 138, 118, .45);
+  --leaf-bg: #f7f4ee; --leaf-ink: #2c2b29; --leaf-on-bg: #e3ece7; --leaf-on-ink: #4f7864;
+  --n0-bg: #e3ece7; --n0-ink: #4f7864; --n1-bg: #f6e9da; --n1-ink: #9a6428; --n2-bg: #e6ecf3; --n2-ink: #4f6a8c;
+}
+:root[data-theme="minimal-dark"] {
+  color-scheme: dark;
+  --bg: #16181a; --surface: #1e2124; --surface2: #25292c; --surface3: #2c3034;
+  --text: #e9e6df; --muted: #8c8f8e; --line: #2b2f32; --line2: #3a3f43;
+  --primary: #8fb8a7; --primary2: #7aa493; --primary-soft: #243530; --on-primary: #132019;
+  --mint: #8fb8a7; --mint-soft: #213029; --peach: #d9a56a; --peach-soft: #38302a;
+  --blue: #9bb2cf; --blue-soft: #263243; --pink: #d49aa9; --pink-soft: #392a30;
+  --danger: #e58a82; --danger-soft: #3d2827; --warn: #d9a56a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 14px 28px -18px rgba(0, 0, 0, .6); --radius: 18px;
+  --heat0: #25292c; --heat1: #263a33; --heat2: #35574a; --heat3: #4f8070; --heat4: #8fb8a7; --heat-line: #2f3437;
+  --bg-glow: radial-gradient(900px 420px at 15% -10%, #22302b 0%, transparent 70%); --card-bg: #1e2124; --input-bg: #181a1c; --sidebar-bg: rgba(22, 24, 26, .95);
+  --paper-bg: #1e2124; --paper-ink: #e9e6df; --paper-muted: #8c8f8e; --paper-rule: rgba(233, 230, 223, .1); --paper-margin: rgba(143, 184, 167, .45);
+  --leaf-bg: #25292c; --leaf-ink: #e9e6df; --leaf-on-bg: #243530; --leaf-on-ink: #8fb8a7;
+  --n0-bg: #243530; --n0-ink: #8fb8a7; --n1-bg: #38302a; --n1-ink: #d9a56a; --n2-bg: #263243; --n2-ink: #9bb2cf;
+}
+/* Sin brillos ni degradados: botones planos, tarjetas redondeadas con sombra muy suave */
+:root[data-theme^="minimal"] .panel, :root[data-theme^="minimal"] .stat { background: var(--surface); border-color: var(--line); box-shadow: var(--shadow); border-radius: 18px; }
+:root[data-theme^="minimal"] .primary-btn { background: var(--primary); color: var(--on-primary); box-shadow: none; }
+:root[data-theme^="minimal"] .primary-btn:hover { background: var(--primary2); }
+:root[data-theme^="minimal"] .journal { background: var(--surface); }
+:root[data-theme^="minimal"] #page-timer .timer-tab.active, :root[data-theme^="minimal"] .db-tm.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); box-shadow: none; }
+:root[data-theme^="minimal"] .db-start { background: var(--primary); color: var(--on-primary); }
+:root[data-theme^="minimal"] .it-cloud { border-color: color-mix(in srgb, var(--primary) 55%, transparent); }
+:root[data-theme^="minimal"] .weekly-chart .chart-bar { background: var(--primary); }
+:root[data-theme^="minimal"] .page-intro h1, :root[data-theme^="minimal"] h1 { letter-spacing: -.02em; }
+.swatch-minimal { background: linear-gradient(135deg, #f3f0ea 55%, #5f8a76 55%); }
+.swatch-minimal-dark { background: linear-gradient(135deg, #16181a 55%, #8fb8a7 55%); }
+/* Degradados violeta fijos de otros archivos: aquí son planos y de un solo color */
+:root[data-theme^="minimal"] .meter > span, :root[data-theme^="minimal"] .category-track span, :root[data-theme^="minimal"] .w-bar span,
+:root[data-theme^="minimal"] .db-timer-bar span, :root[data-theme^="minimal"] .chart-legend i { background: var(--primary); box-shadow: none; }
+:root[data-theme^="minimal"] .meter.over > span { background: var(--danger); }
+:root[data-theme^="minimal"] .meter.warn > span { background: var(--peach); }
+:root[data-theme^="minimal"] .ui-btn.primary { background: var(--primary); color: var(--on-primary); }
