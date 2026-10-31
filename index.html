@@ -12,12 +12,13 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@200;300;400;500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@200;300;400;500&family=Nunito:wght@400;600;700;800&display=swap">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="login.css">
   <link rel="stylesheet" href="pages.css">
   <link rel="stylesheet" href="mix.css">
   <link rel="stylesheet" href="minimal.css">
+  <link rel="stylesheet" href="nube.css">
   <!-- Aplica el tema antes de pintar para evitar parpadeos (oscuro por defecto) -->
   <script src="theme.js"></script>
 </head>
@@ -838,12 +839,16 @@
         <section class="panel">
           <div class="panel-head"><div><h3>Apariencia</h3><p>Se guarda en este dispositivo.</p></div></div>
           <div class="theme-choice" role="radiogroup" aria-label="Tema">
+            <label class="theme-option"><input type="radio" name="theme" value="nube"><span class="swatch swatch-nube" aria-hidden="true"></span><span>Nube · noche</span></label>
+            <label class="theme-option"><input type="radio" name="theme" value="nube-negro"><span class="swatch swatch-nube-negro" aria-hidden="true"></span><span>Nube · negro</span></label>
+            <label class="theme-option"><input type="radio" name="theme" value="nube-dia"><span class="swatch swatch-nube-dia" aria-hidden="true"></span><span>Nube · día</span></label>
             <label class="theme-option"><input type="radio" name="theme" value="dark"><span class="swatch swatch-dark" aria-hidden="true"></span><span>Oscuro</span></label>
             <label class="theme-option"><input type="radio" name="theme" value="light"><span class="swatch swatch-light" aria-hidden="true"></span><span>Claro</span></label>
             <label class="theme-option"><input type="radio" name="theme" value="mix"><span class="swatch swatch-mix" aria-hidden="true"></span><span>Mix</span></label>
             <label class="theme-option"><input type="radio" name="theme" value="minimal"><span class="swatch swatch-minimal" aria-hidden="true"></span><span>Minimal</span></label>
             <label class="theme-option"><input type="radio" name="theme" value="minimal-dark"><span class="swatch swatch-minimal-dark" aria-hidden="true"></span><span>Minimal oscuro</span></label>
           </div>
+          <label class="switch-row" style="margin-top:14px"><input type="checkbox" id="abNavToggle"><span><b>Atajo A A / B B (PC)</b><small>Pulsa A dos veces rápido para ir al apartado anterior y B dos veces para el siguiente. No funciona mientras escribes.</small></span></label>
         </section>
 
         <section class="panel" style="margin-top:16px">
@@ -899,12 +904,13 @@
     <!-- Navegación inferior (móvil) -->
     <nav class="bottom-nav" aria-label="Secciones">
       <a href="#/dashboard" data-page="dashboard" aria-label="Resumen" title="Resumen"><svg class="ico"><use href="#i-dash"/></svg><span>Resumen</span></a>
+      <a href="#/tasks" data-page="tasks" aria-label="Tareas" title="Tareas"><svg class="ico"><use href="#i-task"/></svg><span>Tareas</span><b class="bn-badge" id="bnBadge" hidden></b></a>
+      <button type="button" id="navAdd" class="nav-add" aria-haspopup="true" aria-expanded="false" aria-controls="qaMenu" aria-label="Añadir" title="Añadir"><svg class="cs-cloud" viewBox="0 0 64 44" aria-hidden="true"><defs><linearGradient id="csCloudG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--cg1)"/><stop offset="1" style="stop-color:var(--cg2)"/></linearGradient></defs><path d="M16 42A14 14 0 1 1 14.5 14.1A16 16 0 0 1 46 16.3A13 13 0 1 1 50 42Z" fill="url(#csCloudG)"/><path d="M14 20a10 10 0 0 1 8-5" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2.2" stroke-linecap="round"/></svg><svg class="ico"><use href="#i-plus"/></svg></button>
       <a href="#/habits" data-page="habits" aria-label="Hábitos" title="Hábitos"><svg class="ico"><use href="#i-habit"/></svg><span>Hábitos</span></a>
-      <a href="#/tasks" data-page="tasks" aria-label="Tareas" title="Tareas"><svg class="ico"><use href="#i-task"/></svg><span>Tareas</span></a>
-      <a href="#/finance" data-page="finance" aria-label="Finanzas" title="Finanzas"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
       <button type="button" id="moreBtn" class="nav-more" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" aria-label="Más secciones" title="Más"><svg class="ico"><use href="#i-dots"/></svg><span>Más</span></button>
     </nav>
     <div class="qa-menu more-menu" id="moreMenu" role="menu" aria-label="Más secciones" hidden>
+      <a role="menuitem" href="#/finance" data-page="finance" aria-label="Finanzas" title="Finanzas"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
       <a role="menuitem" href="#/journal" data-page="journal" aria-label="Diario" title="Diario"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
       <a role="menuitem" href="#/timer" data-page="timer" aria-label="Cronómetro" title="Cronómetro"><svg class="ico"><use href="#i-timer"/></svg><span>Cronómetro</span></a>
       <a role="menuitem" href="#/plan" data-page="plan" aria-label="Plan" title="Plan"><svg class="ico"><use href="#i-target"/></svg><span>Plan</span><em class="beta-tag">Beta</em></a>
@@ -967,6 +973,7 @@
   <script src="usage.js"></script>
   <script src="admin.js"></script>
   <script src="quickadd.js"></script>
+  <script src="nube.js"></script>
   <script src="sidebar.js"></script>
   <script src="app.js"></script>
 </body>

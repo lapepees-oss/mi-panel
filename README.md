@@ -106,3 +106,11 @@ Apartado visible solo para la cuenta de `app_admins` (lo exige el servidor con `
 - Pausar a alguien bloquea el acceso a sus datos (no los borra) y se puede revertir; a un administrador no se le puede pausar.
 - Para ver el diseño con datos de ejemplo: en modo invitado, en la consola del navegador, `localStorage.setItem("mipanel.adminDemo","true")` y recargar.
 - Subir cambios con un comando: `./tools/subir.sh "mensaje"` (pruebas, comprobación de la caché offline, sube el número de caché, commit y push).
+
+## Tema «Nube» y navegación nueva (sin migración)
+- **Tema Nube** (`nube.css`), ahora el predeterminado, con tres variantes: *noche* (azul cielo), *negro* (el azul solo en los detalles) y *día* (claro). Fondo con nubes sueltas que se mueven despacio (se quedan quietas con «reducir movimiento»). Se elige en Preferencias → Apariencia; el botón sol/luna pasa por las tres. Se aplicó una vez a todos al estrenarlo; después manda lo que elijas.
+- **PC con el tema Nube:** la navegación pasa a una barra superior con pastilla (la barra lateral sigue igual en los demás temas).
+- **Móvil (todos los temas):** barra inferior con Resumen, Tareas, botón «+» central (con forma de nube en el tema Nube) que abre las acciones rápidas, Hábitos y «Más» (Finanzas pasa a «Más»). Contador de tareas para hoy, el botón «Más» muestra la sección en la que estás, la barra se esconde al bajar y un mini cronómetro aparece encima si hay una sesión en marcha.
+- **Atajo de PC:** pulsa **A** dos veces rápido para ir al apartado anterior y **B** dos veces para el siguiente. No funciona mientras escribes, con un diálogo abierto ni con Ctrl/Alt/Cmd. Se desactiva en Preferencias → Apariencia (se guarda en este navegador).
+- **Asistente paso a paso:** al elegir una opción, un color o un atajo de fecha pasa solo a la siguiente pregunta. Con el tema Nube tiene el estilo nuevo.
+- `nube.js` no guarda nada en Supabase. Prototipo de referencia en `/prototipo/`.

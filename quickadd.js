@@ -3,7 +3,8 @@
 (function () {
   const fab = $("#qaFab"), qa = $("#qaMenu"), moreBtn = $("#moreBtn"), more = $("#moreMenu");
   if (!fab || !qa) return;
-  const MORE_PAGES = ["journal", "timer", "plan", "intelligence", "admin"];
+  const MORE_PAGES = ["finance", "journal", "timer", "plan", "intelligence", "admin"];
+  const navAdd = $("#navAdd");
 
   const ACTIONS = [
     { icon: "euro", label: "Nuevo gasto", run: () => openTxWizard("expense"), main: true },
@@ -15,15 +16,17 @@
   ];
   qa.replaceChildren(...ACTIONS.map((a) => h("button", { type: "button", role: "menuitem", class: "qa-item" + (a.main ? " is-main" : ""), onclick: () => { closeAll(); a.run(); } }, ico(a.icon), h("span", { text: a.label }))));
 
+  const mobileNav = () => matchMedia("(max-width: 760px)").matches;
   function setOpen(menu, btn, on) {
     menu.hidden = !on; btn.setAttribute("aria-expanded", String(on));
     btn.classList.toggle("open", on);
   }
-  function closeAll() { setOpen(qa, fab, false); if (more) setOpen(more, moreBtn, false); }
+  function closeAll() { setOpen(qa, fab, false); if (navAdd) setOpen(qa, navAdd, false); if (more) setOpen(more, moreBtn, false); }
   fab.addEventListener("click", (e) => { e.stopPropagation(); const on = qa.hidden; closeAll(); setOpen(qa, fab, on); if (on) qa.querySelector("button").focus({ preventScroll: true }); });
+  if (navAdd) navAdd.addEventListener("click", (e) => { e.stopPropagation(); const on = qa.hidden; closeAll(); setOpen(qa, navAdd, on); if (on) qa.querySelector("button").focus({ preventScroll: true }); });
   if (moreBtn) moreBtn.addEventListener("click", (e) => { e.stopPropagation(); const on = more.hidden; closeAll(); setOpen(more, moreBtn, on); });
-  document.addEventListener("click", (e) => { if (!e.target.closest(".qa-menu, .qa-fab, .nav-more")) closeAll(); else if (e.target.closest("#moreMenu a")) closeAll(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && (!qa.hidden || (more && !more.hidden))) { closeAll(); fab.focus({ preventScroll: true }); } });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".qa-menu, .qa-fab, .nav-more, .nav-add")) closeAll(); else if (e.target.closest("#moreMenu a")) closeAll(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && (!qa.hidden || (more && !more.hidden))) { closeAll(); (mobileNav() && navAdd ? navAdd : fab).focus({ preventScroll: true }); } });
   window.addEventListener("hashchange", closeAll);
 
   /* «Más» se marca como activo cuando la página actual vive dentro de su panel */

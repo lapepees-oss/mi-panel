@@ -151,6 +151,10 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     if (saved && doneMessage) toast(doneMessage);
   }
 
+  // Al elegir una opción, un color o un atajo de fecha se pasa solo a la siguiente pregunta (como pulsar «Continuar»)
+  let autoT = 0;
+  function autoNext() { clearTimeout(autoT); autoT = setTimeout(() => { if (dlg.isConnected && !busy) form.requestSubmit(next); }, 170); }
+
   function field(s) {
     const id = "wiz-" + s.key;
     const set = (v) => { values[s.key] = v; err.textContent = ""; };
@@ -160,7 +164,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
       for (const o of opts) {
         const on = values[s.key] === o.value;
         wrap.append(h("button", { type: "button", class: "wiz-chip" + (on ? " on" : ""), role: "radio", "aria-checked": String(on), text: o.label,
-          onclick: () => { set(o.value); wrap.querySelectorAll(".wiz-chip").forEach((b) => { const m = b === btn(o); b.classList.toggle("on", m); b.setAttribute("aria-checked", String(m)); }); } }));
+          onclick: () => { set(o.value); wrap.querySelectorAll(".wiz-chip").forEach((b) => { const m = b === btn(o); b.classList.toggle("on", m); b.setAttribute("aria-checked", String(m)); }); autoNext(); } }));
       }
       const btn = (o) => wrap.children[opts.indexOf(o)];
       return wrap;
@@ -182,7 +186,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
         const on = values[s.key] === o.value;
         wrap.append(h("button", { type: "button", class: "wiz-color" + (on ? " on" : ""), role: "radio", "aria-checked": String(on), "aria-label": o.label, title: o.label,
           "data-v": o.value, style: `--c:${o.value}`,
-          onclick: () => { set(o.value); wrap.querySelectorAll(".wiz-color").forEach((b) => { const m = b.dataset.v === o.value; b.classList.toggle("on", m); b.setAttribute("aria-checked", String(m)); }); } }));
+          onclick: () => { set(o.value); wrap.querySelectorAll(".wiz-color").forEach((b) => { const m = b.dataset.v === o.value; b.classList.toggle("on", m); b.setAttribute("aria-checked", String(m)); }); autoNext(); } }));
       }
       return wrap;
     }
@@ -212,7 +216,7 @@ function openWizard({ steps, initial = {}, submitLabel = "Guardar", doneMessage 
     });
     if (s.type === "date" && s.quick) {
       return h("div", {}, input, h("div", { class: "wiz-quick" }, ...s.quick.map((q) =>
-        h("button", { type: "button", class: "wiz-chip small", text: q.label, onclick: () => { input.value = q.value; set(q.value); } }))));
+        h("button", { type: "button", class: "wiz-chip small", text: q.label, onclick: () => { input.value = q.value; set(q.value); autoNext(); } }))));
     }
     return input;
   }
