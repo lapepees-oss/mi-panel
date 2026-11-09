@@ -1,12 +1,11 @@
 "use strict";
 // CloudSpace Intelligence (interfaz). El análisis lo hace intel.js con reglas, en este navegador.
+// La página completa de Intelligence se sustituyó por el chat con Sócrates (socrates.js); aquí quedan la nube
+// flotante, el informe para Claude Pro, los descartes (los usa el widget «Sugerencia contextual») y los ajustes.
 // No hay ninguna llamada a IA ni a APIs externas: Claude Pro solo interviene si TÚ copias el informe y lo pegas allí.
 // Nada se crea o modifica sin confirmación explícita.
 
 const CLAUDE_URL = "https://claude.ai/new"; // dirección oficial; no se usa ningún endpoint privado
-const CAT_FILTERS = [["all", "Todas"], ["tareas", "Tareas"], ["habitos", "Hábitos"], ["finanzas", "Finanzas"], ["objetivos", "Objetivos"]];
-let itFilter = "all";
-let showDismissed = false;
 const cloud = { open: false, expanded: new Set() }; // un único botón alterna abrir/cerrar; el estado (tarjetas desplegadas, scroll) se conserva
 try { Object.assign(cloud, JSON.parse(sessionStorage.getItem("itCloud") || "{}"), { expanded: new Set() }); } catch (_) {}
 const saveCloud = () => { try { sessionStorage.setItem("itCloud", JSON.stringify({ open: cloud.open })); } catch (_) {} };
@@ -21,43 +20,6 @@ function dismissCard(id, days = 14) { const m = dismissals(); m[id] = Logic.addD
 
 /* ---------- Tarjetas ---------- */
 const KIND_CLASS = { confirmed: "k-confirmed", pattern: "k-pattern", estimate: "k-estimate" };
-
-function applyCard(c, edit) {
-  const a = c.action;
-  if (!a) return;
-  const done = () => { toast("Tarea creada."); dismissCard(c.id, 14); };
-  if (!edit) {
-    askConfirm({ title: "¿Crear esta tarea?", text: `«${a.title}»${a.due_date ? " · " + Logic.longDate(a.due_date) : ""}. Es solo una propuesta: se crea únicamente si confirmas.`, confirmLabel: "Crear tarea" })
-      .then(async (ok) => { if (ok && (await createTask({ title: a.title, due_date: a.due_date, prio: a.prio, notes: a.notes }))) done(); });
-    return;
-  }
-  openWizard({
-    steps: [
-      { key: "title", label: "Título de la tarea", type: "text", required: true, requiredMessage: "Escribe un título.", maxLength: 200, summaryLabel: "Tarea" },
-      { key: "due", label: "¿Para cuándo?", type: "date", hint: "Opcional.", summaryLabel: "Fecha", validate: (v) => (!v || Logic.isDayKey(v) ? "" : "Elige una fecha válida."), format: (v) => (Logic.isDayKey(v) ? Logic.longDate(v) : "Sin fecha") },
-    ],
-    initial: { title: a.title, due: a.due_date || "" }, earlyAfter: 0, submitLabel: "Crear tarea", doneMessage: "Tarea creada.",
-    onSubmit: async (v) => { const ok = await createTask({ title: v.title.trim(), due_date: v.due || null, prio: a.prio, notes: a.notes }); if (ok) dismissCard(c.id, 14); return !!ok; },
-  });
-}
-
-function cardEl(c) {
-  const btn = (label, fn, cls = "secondary small") => h("button", { type: "button", class: cls, onclick: fn }, label);
-  return h("article", { class: "it-card sev" + c.severity, "data-id": c.id },
-    h("div", { class: "it-card-top" },
-      h("span", { class: "badge", text: Intel.CATEGORY_LABEL[c.category] || "Otros" }),
-      h("span", { class: "it-kind " + KIND_CLASS[c.kind], title: "Nivel de certeza de esta observación", text: Intel.KIND_LABEL[c.kind] })),
-    h("h3", { text: c.title }),
-    h("p", { class: "it-problem", text: c.problem }),
-    h("div", { class: "it-block" }, h("small", { text: "Datos que lo justifican" }), h("ul", {}, ...c.evidence.map((e) => h("li", { text: e })))),
-    h("div", { class: "it-block" }, h("small", { text: "Recomendación" }), h("p", { text: c.recommendation })),
-    c.benefit ? h("div", { class: "it-block" }, h("small", { text: "Beneficio esperado" }), h("p", { text: c.benefit })) : null,
-    h("div", { class: "it-card-actions" },
-      c.review ? btn(c.review.label || "Revisar", () => { location.hash = "#/" + c.review.page; }) : null,
-      c.action ? btn("Aplicar", () => applyCard(c, false), "primary-btn small") : null,
-      c.action ? btn("Editar", () => applyCard(c, true)) : null,
-      btn("Descartar", () => dismissCard(c.id), "link-button")));
-}
 
 /* ---------- Informe para Claude Pro ---------- */
 
@@ -111,119 +73,11 @@ function openReport(kind = "full") {
   openDialog(dlg);
 }
 
-/* ---------- Importar análisis de Claude ---------- */
-
-function openImport() {
-  if (!intelActive() || rulesOnly()) return;
-  const dlg = $("#intel-dialog");
-  const raw = h("textarea", { class: "it-report-text", rows: 9, placeholder: "Pega aquí la respuesta de Claude…", "aria-label": "Respuesta de Claude" });
-  const preview = h("div", { class: "it-import-preview" });
-  const saveBtn = h("button", { type: "button", class: "ui-btn primary", disabled: true }, "Guardar seleccionadas");
-  let parsed = [];
-  const picked = () => parsed.filter((p) => p.on);
-  const sync = () => { saveBtn.disabled = picked().length === 0; saveBtn.textContent = `Guardar seleccionadas (${picked().length})`; };
-
-  const manual = () => openWizard({
-    steps: [
-      { key: "title", label: "Título de la recomendación", type: "text", required: true, requiredMessage: "Escribe un título.", maxLength: 120, summaryLabel: "Título" },
-      { key: "action", label: "Acción propuesta", type: "textarea", maxLength: 500, hint: "Opcional.", summaryLabel: "Acción" },
-    ],
-    initial: { title: "", action: "" }, earlyAfter: 0, submitLabel: "Guardar", doneMessage: "Recomendación guardada.",
-    onSubmit: (v) => addIntelItems([{ title: v.title.trim(), action: (v.action || "").trim(), category: "otros", priority: 4 }]),
-  });
-
-  const interpret = () => {
-    const r = Intel.parseClaudeResponse(raw.value, todayKey());
-    parsed = r.items.map((i) => ({ ...i, on: true }));
-    if (r.unparsed) {
-      preview.replaceChildren(h("p", { class: "it-warn", role: "status" }, raw.value.trim() ? "No he podido identificar recomendaciones con ese formato. Tu texto se conserva arriba para que lo revises; puedes añadir una recomendación a mano." : "Pega primero la respuesta de Claude."),
-        raw.value.trim() ? h("button", { type: "button", class: "secondary small", onclick: manual }, "Añadir una recomendación a mano") : null);
-    } else {
-      preview.replaceChildren(
-        h("p", { class: "muted", text: "Esto es solo una interpretación del texto pegado. No se ha guardado nada ni se ejecuta ninguna instrucción del texto: marca las que quieras conservar." }),
-        ...parsed.map((p) => h("div", { class: "it-import-item" },
-          h("label", { class: "check" }, h("input", { type: "checkbox", checked: true, onchange: (e) => { p.on = e.target.checked; sync(); } }),
-            h("input", { class: "it-import-title", value: p.title, maxlength: "120", "aria-label": "Título", oninput: (e) => { p.title = e.target.value.slice(0, 120); } })),
-          h("div", { class: "meta" },
-            h("span", { class: "badge", text: Intel.CATEGORY_LABEL[p.category] || "Otros" }),
-            h("span", { class: "badge p" + p.priority, text: Logic.PRIO_LABELS[p.priority] }),
-            p.suggested_date ? h("span", { class: "badge today", text: "📅 " + Logic.shortDate(p.suggested_date) }) : null,
-            p.goal ? h("span", { class: "badge", text: "Objetivo: " + p.goal }) : null),
-          p.problem ? h("p", { class: "muted", text: "Problema: " + p.problem }) : null,
-          p.action ? h("p", { text: "Acción: " + p.action }) : null)));
-    }
-    sync();
-  };
-  saveBtn.addEventListener("click", async () => {
-    const sel = picked().filter((p) => p.title.trim());
-    if (!sel.length) return;
-    saveBtn.disabled = true;
-    if (await addIntelItems(sel)) { closeDialog(dlg); toast(`${plural(sel.length, "recomendación guardada", "recomendaciones guardadas")}.`); }
-    else sync();
-  });
-  dlg.replaceChildren(h("div", { class: "sheet it-report" },
-    h("h2", { style: "margin-top:0", text: "Importar análisis de Claude" }),
-    h("p", { class: "muted", text: "Pega la respuesta que obtuviste en Claude. Funciona mejor si sigue el formato pedido en el informe (título, categoría, problema, acción, prioridad, fecha)." }),
-    raw, h("button", { type: "button", class: "secondary small", onclick: interpret }, "Interpretar texto"), preview,
-    h("div", { class: "ui-actions" }, h("button", { type: "button", class: "ui-btn ghost", onclick: () => closeDialog(dlg) }, "Cerrar"), saveBtn)));
-  openDialog(dlg);
-  raw.focus();
-}
-
-/* ---------- Recomendaciones importadas ---------- */
-
-const STATUS_TEXT = { pending: "Pendiente de revisar", applied: "Convertida en tarea", dismissed: "Descartada" };
-
-function importedEl(it) {
-  const actions = [];
-  if (it.status === "pending") {
-    actions.push(
-      h("button", { type: "button", class: "primary-btn small", onclick: async () => {
-        if (!(await askConfirm({ title: "¿Crear esta tarea?", text: `«${it.title}»${it.suggested_date ? " · " + Logic.longDate(it.suggested_date) : ""}. Se creará solo si confirmas.`, confirmLabel: "Crear tarea" }))) return;
-        const notes = [it.action, it.problem && `Problema: ${it.problem}`, it.related_goal && `Objetivo: ${it.related_goal}`, "Importada desde un análisis de Claude."].filter(Boolean).join("\n\n");
-        if (await createTask({ title: it.title, due_date: it.suggested_date || null, prio: it.priority, notes })) { await updateIntelItem(it.id, { status: "applied" }); toast("Tarea creada."); }
-      } }, "Crear tarea"),
-      h("button", { type: "button", class: "secondary small", onclick: () => updateIntelItem(it.id, { status: "dismissed" }) }, "Descartar"));
-  }
-  actions.push(h("button", { type: "button", class: "link-button danger", onclick: async () => { if (await askConfirm({ title: `¿Eliminar «${it.title}»?`, text: "No se puede deshacer.", confirmLabel: "Eliminar", danger: true })) deleteIntelItem(it.id); } }, "Eliminar"));
-  return h("article", { class: "it-card imported " + it.status },
-    h("div", { class: "it-card-top" }, h("span", { class: "badge", text: Intel.CATEGORY_LABEL[it.category] || "Otros" }), h("span", { class: "it-kind", text: STATUS_TEXT[it.status] })),
-    h("h3", { text: it.title }),
-    it.problem ? h("p", { class: "it-problem", text: it.problem }) : null,
-    it.action ? h("p", { text: it.action }) : null,
-    h("div", { class: "meta" }, h("span", { class: "badge p" + it.priority, text: Logic.PRIO_LABELS[it.priority] }), it.suggested_date ? h("span", { class: "badge today", text: "📅 " + Logic.shortDate(it.suggested_date) }) : null, it.related_goal ? h("span", { class: "badge", text: "Objetivo: " + it.related_goal }) : null),
-    h("div", { class: "it-card-actions" }, ...actions));
-}
-
-/* ---------- Resumen semanal ---------- */
-
-function weeklyView() {
-  const d = intelData();
-  const w = Intel.weeklyReview(d, Intel.analyze(d));
-  const row = (k, v) => h("div", {}, h("small", { text: k }), h("strong", { text: v }));
-  $("#itWeeklyBody").replaceChildren(
-    h("p", { class: "muted", text: `Semana del ${Logic.longDate(w.weekStart)} al ${Logic.longDate(w.weekEnd)}` }),
-    h("div", { class: "it-stats" },
-      row("Tareas completadas", String(w.tasks.done)), row("Tareas abiertas / vencidas", `${w.tasks.open} / ${w.tasks.overdue}`),
-      row("Cumplimiento de hábitos", w.habits.pct === null ? "Sin datos" : w.habits.pct + "%"), row("Gastos / ingresos de la semana", `${Logic.formatEUR(w.finance.expense)} / ${Logic.formatEUR(w.finance.income)}`)),
-    h("div", { class: "it-block" }, h("small", { text: "Principales obstáculos observados" }), h("ul", {}, ...(w.obstacles.length ? w.obstacles : ["Ninguno destacado con los datos disponibles."]).map((o) => h("li", { text: o })))),
-    h("div", { class: "it-block" }, h("small", { text: "Tres prioridades sugeridas para la próxima semana" }),
-      w.priorities.length ? h("ol", {}, ...w.priorities.map((p) => h("li", {}, h("b", { text: p.title }), " — " + p.why))) : h("p", { text: "Con los datos actuales no hay prioridades que sugerir." })));
-  return w;
-}
-
-$("#itWeeklyCopy").addEventListener("click", async () => { const w = weeklyView(); toast((await copyText(Intel.weeklyMarkdown(w))) ? "Resumen copiado." : "No se pudo copiar automáticamente."); });
-$("#itWeeklyDownload").addEventListener("click", () => { const w = weeklyView(); downloadFile(`cloudspace-resumen-semanal-${w.weekStart}.md`, "text/markdown;charset=utf-8", Intel.weeklyMarkdown(w)); });
-$("#itWeeklyClaude").addEventListener("click", () => openReport("weekly"));
-$("#itAnalyze").addEventListener("click", () => openReport("full"));
-$("#itImport").addEventListener("click", openImport);
-$("#itRestore").addEventListener("click", () => { showDismissed = !showDismissed; renderIntelligence(); });
-
 /* ---------- Nube flotante ---------- */
 
 function renderCloud(active, analysis) {
   const fab = $("#itCloud"), win = $("#itWindow");
-  const allowed = active && user && !isGuest(); // el invitado no ve la nube: Intelligence es una función de la cuenta
+  const allowed = active && user && !isGuest() && currentPage !== "socrates"; // el invitado no ve la nube; en el chat taparía el botón de enviar
   fab.classList.toggle("hidden", !allowed);
   if (!allowed) { win.classList.add("hidden"); return; }
   const dis = dismissals();
@@ -243,7 +97,7 @@ function renderCloud(active, analysis) {
           h("summary", { text: c.title }), h("p", { text: c.problem }), h("p", { class: "muted", text: c.recommendation })))
       : [h("p", { class: "muted", text: analysis.summary.hasData ? "Nada que destacar ahora mismo." : "Cuando registres datos, aquí aparecerán observaciones." })]),
     h("div", { class: "it-win-actions" },
-      h("button", { type: "button", class: "secondary small", onclick: () => { location.hash = "#/intelligence"; cloud.open = false; saveCloud(); renderIntelligence(); } }, "Abrir Intelligence"),
+      h("button", { type: "button", class: "secondary small", onclick: () => { location.hash = "#/socrates"; cloud.open = false; saveCloud(); renderIntelligence(); } }, "Hablar con Sócrates"),
       rulesOnly() ? null : h("button", { type: "button", class: "primary-btn small", onclick: () => openReport("full") }, "Analizar con Claude Pro")));
   body.scrollTop = scroll;
 }
@@ -288,40 +142,12 @@ function renderIntelligence() {
   const active = intelActive();
   $$("[data-intel]").forEach((a) => a.classList.toggle("hidden", !active));
   renderIntelPrefs();
-  if (!active && currentPage === "intelligence") { location.hash = "#/dashboard"; return; }
-  const analysis = active ? intelAnalysis() : { cards: [], main: null, summary: { state: "", hasData: false } };
-  renderCloud(active, analysis);
-  if (currentPage !== "intelligence" || !active) return;
-
-  const s = analysis.summary;
-  $("#itStatus").textContent = state.intel.expires_at ? `Disponible hasta ${new Date(state.intel.expires_at).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}` : "Disponible sin fecha límite";
-  show($("#itAnalyze"), !rulesOnly());
-  show($("#itImport"), !rulesOnly());
-  show($("#itWeeklyClaude"), !rulesOnly());
-  const warn = $("#itWarn");
-  warn.textContent = state.intel.ready ? "" : "Falta ejecutar migracion-v5.sql en Supabase: no se podrán guardar recomendaciones importadas ni aplicar la expiración en el servidor.";
-  show(warn, !state.intel.ready);
-  $("#itState").textContent = s.state;
-  $("#itHabits").textContent = String(s.habitsPending || 0);
-  $("#itTasks").textContent = String(s.tasksSoon || 0);
-  $("#itGoals").textContent = String(s.goalsAttention || 0);
-  $("#itSpend").textContent = String(s.expensesReview || 0);
-  const dis = dismissals();
-  const visible = analysis.cards.filter((c) => (showDismissed || !dis[c.id]) && (itFilter === "all" || c.category === itFilter));
-  const main = analysis.cards.find((c) => !dis[c.id]);
-  $("#itMain").replaceChildren(main
-    ? h("div", {}, h("small", { text: "Recomendación principal" }), h("strong", { text: main.title }), h("p", { text: main.recommendation }))
-    : h("div", {}, h("small", { text: "Recomendación principal" }), h("p", { class: "muted", text: s.hasData ? "Nada urgente con los datos actuales." : "Todavía no hay datos suficientes." })));
-  $("#itFilters").replaceChildren(...CAT_FILTERS.map(([k, label]) => h("button", { type: "button", class: "chip" + (itFilter === k ? " active" : ""), "aria-pressed": String(itFilter === k), onclick: () => { itFilter = k; renderIntelligence(); } }, label)));
-  show($("#itRestore"), Object.keys(dis).length > 0);
-  $("#itRestore").textContent = showDismissed ? "Ocultar descartadas" : "Mostrar descartadas";
-  $("#itCards").replaceChildren(...visible.map((c) => { const el = cardEl(c); if (dis[c.id]) el.classList.add("dismissed"); return el; }));
-  show($("#itEmpty"), visible.length === 0);
-  $("#itEmptyText").textContent = !s.hasData ? "Todavía no hay datos suficientes para analizar. Registra tareas, hábitos o movimientos y vuelve." : analysis.cards.length ? "No hay recomendaciones en esta categoría (o las has descartado)." : "No he detectado nada destacable con tus datos actuales. Eso también es una buena noticia.";
-  weeklyView();
-  $("#itItems").replaceChildren(...[...state.intelItems].sort((a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1)).map(importedEl));
-  show($("#itItemsEmpty"), state.intelItems.length === 0);
+  renderCloud(active, active ? intelAnalysis() : { cards: [], main: null, summary: { state: "", hasData: false } });
 }
+
+// Abre la nube flotante (la usan el widget «Sugerencia contextual» y su enlace «Abrir»)
+function openIntelCloud() { cloud.open = true; saveCloud(); renderIntelligence(); }
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-open-intel]"); if (b) { e.preventDefault(); openIntelCloud(); } });
 
 // Comprueba la expiración sin recargar: al cruzar la fecha, la sección desaparece sola
 setInterval(() => {

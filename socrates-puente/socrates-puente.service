@@ -1,0 +1,18 @@
+# Servicio de usuario (Linux/systemd) para que el puente arranque solo al iniciar sesión.
+# Instalación:
+#   mkdir -p ~/.config/systemd/user && cp socrates-puente.service ~/.config/systemd/user/
+#   (edita la ruta de ExecStart si guardaste el script en otro sitio)
+#   systemctl --user daemon-reload && systemctl --user enable --now socrates-puente
+#   journalctl --user -u socrates-puente -f      ← ver lo que hace
+[Unit]
+Description=Puente CloudSpace - Sócrates
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.config/socrates/puente_cloudspace.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

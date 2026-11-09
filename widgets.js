@@ -127,7 +127,7 @@ function renderWSuggestion(body) {
   body.replaceChildren(h("div", { class: "w-sug" },
     h("div", { class: "w-chips" }, h("span", { class: "it-kind " + KIND_CLASS[card.kind], text: Intel.KIND_LABEL[card.kind] })),
     h("strong", { text: card.title }), h("p", { class: "muted", text: card.recommendation }),
-    h("div", { class: "row" }, h("a", { class: "secondary small btn-link", href: "#/intelligence", text: "Ver detalle" }), h("button", { type: "button", class: "link-button", text: "Descartar", onclick: () => dismissCard(card.id) }))));
+    h("div", { class: "row" }, h("button", { type: "button", class: "secondary small", "data-open-intel": "", text: "Ver detalle" }), h("button", { type: "button", class: "link-button", text: "Descartar", onclick: () => dismissCard(card.id) }))));
 }
 
 const WIDGET_RENDERERS = {

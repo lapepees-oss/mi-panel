@@ -1209,3 +1209,44 @@ button.danger-ghost:hover { background: var(--danger-soft); }
   .adm-table tr.adm-tr .adm-act button + button { margin: 0; }
   .adm-table tr.adm-detail, .adm-table tr.adm-detail td { display: block; }
 }
+
+/* ---------- Sócrates (chat) ---------- */
+#page-socrates .sc-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+#page-socrates .sc-head > div { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+#page-socrates .sc-head h1 { margin-bottom: 0; }
+#page-socrates .sc-head .secondary { display: inline-flex; align-items: center; gap: 6px; }
+#page-socrates .sc-head .ico { width: 16px; height: 16px; }
+.sc-status { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--muted); padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); }
+.sc-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: .6; }
+.sc-status.on { color: var(--text); }
+.sc-status.on i { background: var(--mint); opacity: 1; box-shadow: 0 0 0 3px var(--mint-soft); }
+.sc-chat { display: flex; flex-direction: column; padding: 0; overflow: hidden; height: calc(100vh - 230px); min-height: 360px; }
+.sc-log { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; overscroll-behavior: contain; }
+.sc-msg { display: flex; flex-direction: column; max-width: min(78%, 620px); }
+.sc-msg.me { align-self: flex-end; align-items: flex-end; }
+.sc-msg.bot { align-self: flex-start; align-items: flex-start; }
+.sc-bubble { padding: 10px 14px; border-radius: 18px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sc-msg.me .sc-bubble { background: var(--grad, var(--primary)); color: var(--on-primary); border-bottom-right-radius: 6px; }
+.sc-msg.bot .sc-bubble { background: var(--surface2); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+.sc-msg.err .sc-bubble { outline: 1px solid var(--danger); }
+.sc-meta { margin-top: 4px; font-size: .74rem; color: var(--muted); }
+.sc-meta .link-button { font-size: inherit; padding: 0; }
+.sc-msg.typing .sc-bubble { display: inline-flex; gap: 5px; padding: 13px 16px; }
+.sc-msg.typing .sc-bubble i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: scDot 1.2s infinite ease-in-out; }
+.sc-msg.typing .sc-bubble i:nth-child(2) { animation-delay: .15s; }
+.sc-msg.typing .sc-bubble i:nth-child(3) { animation-delay: .3s; }
+@keyframes scDot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .sc-msg.typing .sc-bubble i { animation: none; } }
+.sc-empty { margin: auto; text-align: center; max-width: 340px; }
+.sc-empty .empty-cloud { margin: 0 auto 8px; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); }
+.sc-empty .empty-cloud .ico { width: 28px; height: 28px; }
+.sc-form { display: flex; gap: 8px; align-items: flex-end; padding: 12px; border-top: 1px solid var(--line); background: var(--surface); }
+.sc-form textarea { flex: 1; resize: none; min-height: 42px; max-height: 160px; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line2); background: var(--input-bg); color: var(--text); font: inherit; line-height: 1.4; }
+.sc-form textarea:focus { outline: 2px solid var(--primary); outline-offset: 0; }
+.sc-send { width: 42px; height: 42px; padding: 0; display: inline-grid; place-items: center; border-radius: 14px; flex: none; }
+.sc-send .ico { width: 18px; height: 18px; }
+@media (max-width: 760px) {
+  .sc-chat { height: calc(100dvh - 250px); }
+  .sc-msg { max-width: 88%; }
+  .sc-log { padding: 12px; }
+}

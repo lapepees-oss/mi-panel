@@ -64,6 +64,8 @@
       <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
       <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.5V4.5h8l9 9-8 8-9-9z"/><circle cx="8" cy="9" r="1"/></symbol>
       <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9.5 12l2 2 3.5-4"/></symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 18.5V7a3 3 0 013-3h8a3 3 0 013 3v6a3 3 0 01-3 3H9l-4 2.5z"/><path d="M9 9h6M9 12.5h4"/></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-7-6 16-2.5-6.5L4 12z"/><path d="M11.5 14.5L20 5"/></symbol>
       <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 01-.6-8.96A6 6 0 0118 10.5 3.75 3.75 0 0117.25 18H7z"/></symbol>
       <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></symbol>
       <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
@@ -177,7 +179,7 @@
           <a href="#/finance" data-page="finance"><svg class="ico"><use href="#i-euro"/></svg><span>Finanzas</span></a>
           <a href="#/timer" data-page="timer"><svg class="ico"><use href="#i-timer"/></svg><span>Cronómetro</span></a>
           <a href="#/plan" data-page="plan"><svg class="ico"><use href="#i-target"/></svg><span>Plan</span><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em></a>
-          <a href="#/intelligence" data-page="intelligence" data-intel class="hidden"><svg class="ico"><use href="#i-cloud"/></svg><span>Intelligence</span><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em></a>
+          <a href="#/socrates" data-page="socrates" data-socrates class="hidden"><svg class="ico"><use href="#i-chat"/></svg><span>Sócrates</span><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em></a>
           <a href="#/admin" data-page="admin" data-admin class="hidden"><svg class="ico"><use href="#i-shield"/></svg><span>Administración</span></a>
         </nav>
       </div>
@@ -333,7 +335,7 @@
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel is-off" data-widget="suggestion" data-title="Sugerencia contextual" aria-label="Sugerencia contextual">
-          <div class="panel-head"><div><h3>Sugerencia contextual</h3></div><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em><a class="link-button" href="#/intelligence">Abrir ↗</a></div>
+          <div class="panel-head"><div><h3>Sugerencia contextual</h3></div><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em><button type="button" class="link-button" data-open-intel>Abrir ↗</button></div>
           <div class="wbody"><div class="w-state loading"><i class="w-skel"></i><i class="w-skel short"></i></div></div>
         </section>
         <section class="db-widget panel" data-widget="schedule" data-title="Mi horario" aria-label="Mi horario">
@@ -747,51 +749,23 @@
         </section>
       </section>
 
-      <!-- INTELLIGENCE -->
-      <section class="page hidden" id="page-intelligence" aria-labelledby="h-intelligence">
-        <div class="page-intro it-head">
+      <!-- SÓCRATES (chat; sustituye a la antigua página de Intelligence) -->
+      <section class="page hidden" id="page-socrates" aria-labelledby="h-socrates">
+        <div class="page-intro sc-head">
           <div>
-            <h1 id="h-intelligence">CloudSpace Intelligence</h1><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em>
-            
-            <span class="pill" id="itStatus"></span>
+            <h1 id="h-socrates">Sócrates</h1><em class="beta-tag" title="Función en pruebas: puede cambiar">Beta</em>
+            <span class="sc-status" id="scStatus" role="status"><i aria-hidden="true"></i><span>Comprobando…</span></span>
           </div>
-          <div class="it-actions">
-            <button type="button" class="primary-btn" id="itAnalyze"><svg class="ico"><use href="#i-cloud"/></svg> Analizar con Claude Pro</button>
-            <button type="button" class="secondary" id="itImport">Importar análisis de Claude</button>
-          </div>
+          <button type="button" class="secondary small" id="scClear"><svg class="ico"><use href="#i-trash"/></svg> Borrar conversación</button>
         </div>
-        <p class="it-warn hidden" id="itWarn" role="status"></p>
-
-        <section class="panel it-summary">
-          <div class="panel-head"><div><h3>Resumen inteligente del día</h3><p id="itState"></p></div></div>
-          <div class="it-stats">
-            <div><small>Hábitos pendientes</small><strong id="itHabits">0</strong></div>
-            <div><small>Tareas vencidas o próximas</small><strong id="itTasks">0</strong></div>
-            <div><small>Objetivos que requieren atención</small><strong id="itGoals">0</strong></div>
-            <div><small>Gastos que merecen revisión</small><strong id="itSpend">0</strong></div>
-          </div>
-          <div class="it-main" id="itMain"></div>
+        <p class="it-warn hidden" id="scWarn" role="status"></p>
+        <section class="panel sc-chat">
+          <div class="sc-log" id="scLog" role="log" aria-live="polite" aria-label="Conversación con Sócrates"></div>
+          <form class="sc-form" id="scForm" autocomplete="off">
+            <textarea id="scInput" rows="1" maxlength="4000" placeholder="Escriba a Sócrates…" aria-label="Mensaje para Sócrates" enterkeyhint="send"></textarea>
+            <button type="submit" class="primary-btn sc-send" id="scSend" aria-label="Enviar" title="Enviar (Intro)"><svg class="ico"><use href="#i-send"/></svg></button>
+          </form>
         </section>
-
-        <div class="section-title"><div><h2>Recomendaciones</h2><p>Cada una indica de dónde sale y con qué certeza. Nada se aplica sin tu confirmación.</p></div>
-          <button type="button" class="link-button hidden" id="itRestore">Mostrar descartadas</button></div>
-        <div class="chips it-filters" id="itFilters" role="group" aria-label="Filtrar por categoría"></div>
-        <div class="it-cards" id="itCards"></div>
-        <div class="task-empty hidden" id="itEmpty"><div class="empty-cloud" aria-hidden="true"><svg class="ico"><use href="#i-cloud"/></svg></div><p id="itEmptyText"></p></div>
-
-        <div class="section-title"><div><h2>Resumen semanal</h2><p>Generado por reglas con lo registrado esta semana.</p></div></div>
-        <section class="panel">
-          <div id="itWeeklyBody" class="it-weekly"></div>
-          <div class="row it-weekly-actions">
-            <button type="button" class="secondary" id="itWeeklyCopy">Copiar resumen</button>
-            <button type="button" class="secondary" id="itWeeklyDownload">Descargar</button>
-            <button type="button" class="secondary" id="itWeeklyClaude">Analizarlo con Claude Pro</button>
-          </div>
-        </section>
-
-        <div class="section-title"><div><h2>Recomendaciones importadas</h2><p>Las que decidiste guardar desde el análisis de Claude.</p></div></div>
-        <div class="it-items" id="itItems"></div>
-        <p class="empty-state" id="itItemsEmpty">Todavía no has importado ninguna.</p>
       </section>
 
       <!-- PREFERENCIAS -->
@@ -914,7 +888,7 @@
       <a role="menuitem" href="#/journal" data-page="journal" aria-label="Diario" title="Diario"><svg class="ico"><use href="#i-journal"/></svg><span>Diario</span></a>
       <a role="menuitem" href="#/timer" data-page="timer" aria-label="Cronómetro" title="Cronómetro"><svg class="ico"><use href="#i-timer"/></svg><span>Cronómetro</span></a>
       <a role="menuitem" href="#/plan" data-page="plan" aria-label="Plan" title="Plan"><svg class="ico"><use href="#i-target"/></svg><span>Plan</span><em class="beta-tag">Beta</em></a>
-      <a role="menuitem" href="#/intelligence" data-page="intelligence" data-intel class="hidden" aria-label="Intelligence" title="Intelligence"><svg class="ico"><use href="#i-cloud"/></svg><span>Intelligence</span><em class="beta-tag">Beta</em></a>
+      <a role="menuitem" href="#/socrates" data-page="socrates" data-socrates class="hidden" aria-label="Sócrates" title="Sócrates"><svg class="ico"><use href="#i-chat"/></svg><span>Sócrates</span><em class="beta-tag">Beta</em></a>
       <a role="menuitem" href="#/admin" data-page="admin" data-admin class="hidden" aria-label="Administración" title="Administración"><svg class="ico"><use href="#i-shield"/></svg><span>Administración</span></a>
     </div>
     <div class="qa-menu" id="qaMenu" role="menu" aria-label="Añadir" hidden></div>
@@ -967,6 +941,7 @@
   <script src="finance.js"></script>
   <script src="timer.js"></script>
   <script src="intelligence.js"></script>
+  <script src="socrates.js"></script>
   <script src="notify.js"></script>
   <script src="prefs.js"></script>
   <script src="guest.js"></script>

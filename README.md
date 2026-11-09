@@ -15,7 +15,7 @@ Espacio personal privado, instalable como PWA: **resumen con mapa de constancia 
 - **Ahorro de tráfico de Supabase:** la app relee solo la tabla que cambió (no toda la base de datos). Plan a largo plazo en `PLAN-SUPABASE.md` y consultas de tamaño en `mantenimiento.sql`.
 - **Resumen personalizable:** bloques reordenables y ocultables (guardado por navegador) y cronómetro/temporizador integrado.
 - **Emoji por hábito** y mapa de constancia calculado sobre los hábitos que existían cada día.
-- **Intelligence:** observaciones calculadas con reglas en tu navegador (tareas vencidas o próximas, hábitos parados, presupuestos, gasto frente al mes anterior, pagos repetidos, objetivos sin tareas) con su evidencia y su nivel de certeza (dato confirmado, patrón probable o estimación). Informe en Markdown para analizarlo **manualmente** en Claude (copiar, descargar, abrir claude.ai) e importación de la respuesta con revisión previa; resumen semanal; nube flotante. **No usa la API de Anthropic ni ninguna otra, no hay claves y no se envía nada solo.** Se puede activar/desactivar y fijar una fecha de expiración en Preferencias; la fecha la pones tú, la app no comprueba tu suscripción.
+- **Sócrates (chat):** sustituye a la antigua página de Intelligence. Lo que escribes se guarda en `socrates_messages` (`migracion-v12.sql`) y el puente de tu PC (`socrates-puente/`) se lo pasa a Sócrates (Ollama) y escribe la respuesta, que llega por tiempo real. Indicador de conectado/desconectado y funciona desde el móvil sin abrir puertos. La nube flotante, el informe para Claude Pro y la «Sugerencia contextual» de Intelligence siguen disponibles.
 - **Preferencias:** tema, **exportar JSON**, importar copias de Cloudspace (con resumen previo y sin duplicar), cerrar sesión.
 
 ## Modo invitado y feedback
@@ -42,7 +42,7 @@ git push
 ```
 
 ## Estructura
-`index.html` (páginas y diálogos) · `styles.css`, `pages.css` (estilos por página), `login.css` · `logic.js` (lógica pura, probada en Node) · `quotes.js` (citas) · `phrases.js` (frase del día: reflexiones originales sin firma) · `intel.js` (motor de reglas de Intelligence, probado en Node) · `intelligence.js` (interfaz) · `core.js` (estado, utilidades) · `data.js` (Supabase) · `auth.js` · `app.js` (rutas) · `userprefs.js` (preferencias por usuario) · `texts.js` (textos editables) · `widgets.js` (bloques nuevos del Resumen) · `dashboard.js`, `habits.js`, `tasks.js`, `journal.js`, `finance.js`, `timer.js`, `prefs.js` · `sw.js`, `manifest.webmanifest`, `icons/`.
+`index.html` (páginas y diálogos) · `styles.css`, `pages.css` (estilos por página), `login.css` · `logic.js` (lógica pura, probada en Node) · `quotes.js` (citas) · `phrases.js` (frase del día: reflexiones originales sin firma) · `intel.js` (motor de reglas de Intelligence, probado en Node) · `intelligence.js` (nube y ajustes de Intelligence) · `socrates.js` (chat con Sócrates) · `core.js` (estado, utilidades) · `data.js` (Supabase) · `auth.js` · `app.js` (rutas) · `userprefs.js` (preferencias por usuario) · `texts.js` (textos editables) · `widgets.js` (bloques nuevos del Resumen) · `dashboard.js`, `habits.js`, `tasks.js`, `journal.js`, `finance.js`, `timer.js`, `prefs.js` · `sw.js`, `manifest.webmanifest`, `icons/`.
 
 ## Pruebas
 ```bash

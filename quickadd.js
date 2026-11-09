@@ -3,7 +3,7 @@
 (function () {
   const fab = $("#qaFab"), qa = $("#qaMenu"), moreBtn = $("#moreBtn"), more = $("#moreMenu");
   if (!fab || !qa) return;
-  const MORE_PAGES = ["finance", "journal", "timer", "plan", "intelligence", "admin"];
+  const MORE_PAGES = ["finance", "journal", "timer", "plan", "socrates", "admin"];
   const navAdd = $("#navAdd");
 
   const ACTIONS = [

@@ -4,7 +4,7 @@
 
 const PAGE_NAMES = {
   dashboard: "Resumen", habits: "Hábitos", tasks: "Tareas", journal: "Diario",
-  finance: "Finanzas", timer: "Cronómetro", plan: "Plan", intelligence: "Intelligence", admin: "Administración", prefs: "Preferencias",
+  finance: "Finanzas", timer: "Cronómetro", plan: "Plan", socrates: "Sócrates", admin: "Administración", prefs: "Preferencias",
 };
 let currentPage = "dashboard";
 let channel = null;
@@ -16,7 +16,7 @@ const pageTitle = () => `${PAGE_NAMES[currentPage]} · Cloudspace`;
 // Solo hay rutas con el formato #/pagina. Los demás hashes (tokens de Supabase) se ignoran.
 function routeFromHash() {
   const m = /^#\/([a-z]+)/.exec(location.hash);
-  const allowed = (n) => PAGE_NAMES[n] && (n !== "intelligence" || intelActive()) && (n !== "admin" || adminActive()); // Intelligence caducada: no hay ruta
+  const allowed = (n) => PAGE_NAMES[n] && (n !== "socrates" || socratesAllowed()) && (n !== "admin" || adminActive()); // el invitado no tiene chat con Sócrates
   if (m && allowed(m[1])) return m[1];
   const saved = store.get("page", "dashboard");
   return allowed(saved) ? saved : "dashboard";
@@ -87,7 +87,7 @@ function route() {
   if (next !== currentPage && typeof flushJournal === "function") flushJournal();
   const prevPage = currentPage;
   currentPage = next;
-  if (/^#\/intelligence/.test(location.hash) && next !== "intelligence") history.replaceState(null, "", "#/" + next); // sección caducada: no se queda la ruta
+  if (/^#\/(intelligence|socrates)/.test(location.hash) && !location.hash.startsWith("#/" + next)) history.replaceState(null, "", "#/" + next); // ruta antigua o no permitida: no se queda
   swapPage(prevPage, currentPage);
   $$("[data-page]").forEach((a) => {
     if (a.dataset.page === currentPage) a.setAttribute("aria-current", "page");
